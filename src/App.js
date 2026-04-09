@@ -1,27 +1,28 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import Login from "./Components/Login";
 import Verification from "./Components/Verification";
+import Dashboard from "./Components/Dashboard";
+import Splash from "./Components/Splash";
 
 function App() {
-  const [step, setStep] = useState("login");
+  const [step, setStep] = useState("splash");
 
   return (
     <>
+      {step === "splash" && <Splash onDone={() => setStep("login")} />}
+
       {step === "login" && (
-        <Login goToVerification={() => setStep("verification")} 
-         goToSuccess={() => setStep("success")} />
+        <Login
+          goToVerification={() => setStep("verification")}
+          goToSuccess={() => setStep("success")}
+        />
       )}
 
-       {step === "verification" && (
+      {step === "verification" && (
         <Verification goToSuccess={() => setStep("success")} />
-
       )}
 
-      {step === "success" && (
-        <h1 style={{ textAlign: "center" }}>
-          🎉 You are verified!
-        </h1>
-      )}
+      {step === "success" && <Dashboard />}
     </>
   );
 }
