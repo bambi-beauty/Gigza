@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>GIGZA | Your Gig Starts Here</title>
+  <script>
+    const cssVersion = Date.now();
+    document.write('<link rel="stylesheet" href="style.css?v=' + cssVersion + '">');
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <!-- This are the  PWA Meta Tags -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <link rel="icon" type="image/png" href="/icons/favicon-96x96.png" sizes="96x96" />
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+  <link rel="shortcut icon" href="/icons/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json">
+
+  <meta name="theme-color" content="#FF00FF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="GIGZA">
+  <meta name="mobile-web-app-capable" content="yes">
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="logo">GIG<span>ZA</span></div>
+    <div class="nav-links">
+      <a href="#home">Home</a>
+      <a href="#about">About</a>
+      <a href="#features">Features</a>
+      <a href="#how-it-works">How It Works</a>
+      <a href="#contact">Contact</a>
+      <button id="installBtn" class="btn-install-nav">
+        <i class="fas fa-download"></i> Install App
+      </button>
+    </div>
+    <div class="mobile-menu-btn" id="mobileMenuBtn">
+      <i class="fas fa-bars"></i>
+    </div>
+  </nav>
+
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="#home">Home</a>
+    <a href="#about">About</a>
+    <a href="#features">Features</a>
+    <a href="#how-it-works">How It Works</a>
+    <a href="#contact">Contact</a>
+    <button id="mobileInstallBtn" class="btn-install-mobile">
+      <i class="fas fa-download"></i> Install App
+    </button>
+  </div>
+
+  <section id="home" class="hero">
+    <div class="container">
+      <div class="hero-grid">
+        <div class="hero-content">
+          <div class="badge">
+            🔥 South Africa's Gig Platform
+          </div>
+          <h1>
+            Your Gig
+            <br />
+            <span class="gradient-text">Starts Here.</span>
+          </h1>
+          <p>
+            Connect with top DJs, book instantly or schedule ahead. The smartest way to bring energy to your events.
+          </p>
+          <div class="hero-buttons">
+            <button class="btn-primary">
+              <i class="fas fa-search"></i> Find a DJ
+            </button>
+            <button class="btn-outline">
+              <i class="fas fa-user-plus"></i> Join as Creative
+            </button>
+          </div>
+          <div class="hero-stats">
+            <div><strong>500+</strong> Creatives</div>
+            <div><strong>1,200+</strong> Events Booked</div>
+            <div><strong>4.9</strong> Rating</div>
+          </div>
+        </div>
+
+        <div class="hero-image">
+          <div class="card-mockup">
+            <div class="mockup-header">
+              <div class="mockup-icon">
+                <i class="fas fa-bolt"></i>
+              </div>
+              <div>
+                <h3>Emergency Gig Mode</h3>
+                <p>Need a DJ now?</p>
+              </div>
+            </div>
+
+            <div class="mockup-details">
+              <div class="detail-row">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>Sandton, Johannesburg</span>
+              </div>
+              <div class="detail-row">
+                <i class="fas fa-clock"></i>
+                <span>Today, 7:00 PM - 11:00 PM</span>
+              </div>
+              <div class="detail-row">
+                <i class="fas fa-music"></i>
+                <span>Amapiano / Deep House</span>
+              </div>
+            </div>
+
+            <button class="btn-primary">
+              <i class="fas fa-bolt"></i> Find Available DJs
+            </button>
+
+            <div class="mockup-footer">
+              3 DJs available nearby • Avg response: 2 min
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="about" class="about">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Why GIGZA</span>
+        <h2>Empowering South African Creatives</h2>
+        <p>We're building a reliable bridge between talent and opportunity.</p>
+      </div>
+      <div class="about-grid">
+        <div class="about-card">
+          <i class="fas fa-chart-line"></i>
+          <h3>The Problem</h3>
+          <p>Event organizers struggle to find reliable DJs last-minute. Talented creatives lack exposure & professional bookings happen via WhatsApp chaos.</p>
+        </div>
+        <div class="about-card">
+          <i class="fas fa-handshake"></i>
+          <h3>Our Solution</h3>
+          <p>A structured digital marketplace with verified profiles, dual booking modes, secure payments, and fair dispute resolution.</p>
+        </div>
+        <div class="about-card">
+          <i class="fas fa-users"></i>
+          <h3>Social Impact</h3>
+          <p>Youth employment, creative industry growth, and economic participation, turning passion into sustainable income.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="features">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Platform Power</span>
+        <h2>Built for the Gig Economy</h2>
+        <p>Everything you need to book or get booked fast, safe, and smart.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-item">
+          <i class="fas fa-bolt"></i>
+          <h3>Emergency Gig Mode</h3>
+          <p>Need a DJ in minutes? Request instantly, nearby pros accept, just like ride-hailing for events.</p>
+        </div>
+        <div class="feature-item">
+          <i class="fas fa-calendar-check"></i>
+          <h3>Scheduled Booking</h3>
+          <p>Plan weddings, parties & corporate events. Browse portfolios, compare ratings and book future dates.</p>
+        </div>
+        <div class="feature-item">
+          <i class="fas fa-star"></i>
+          <h3>Ratings & Reviews</h3>
+          <p>Transparent feedback after each gig. Build reputation and trust within the community.</p>
+        </div>
+        <div class="feature-item">
+          <i class="fas fa-shield-alt"></i>
+          <h3>Secure Payments</h3>
+          <p>Deposit protection and escrow-style holding until gig completion. Fair for both sides.</p>
+        </div>
+        <div class="feature-item">
+          <i class="fas fa-map-marker-alt"></i>
+          <h3>Location Search</h3>
+          <p>Find creatives near your venue. Filter by genre, price, and availability in real time.</p>
+        </div>
+        <div class="feature-item">
+          <i class="fas fa-chart-simple"></i>
+          <h3>Creator Dashboard</h3>
+          <p>Earnings, analytics, and portfolio growth, track your freelance career seamlessly.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how-it-works" class="how-it-works">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Two Ways to Gig</span>
+        <h2>Emergency or Scheduled - You Choose</h2>
+      </div>
+      <div class="modes-wrapper">
+        <div class="mode-card emergency">
+          <h3>⚡ Emergency Gig Mode</h3>
+          <p>Last-minute cancellation? Urgent event need? Post your request with location, budget & time. Available DJs nearby compete to accept the gig instantly. First to accept locks it in. Perfect for spontaneous vibes.</p>
+          <div class="mode-tag">Real-time • Location-based • Fast matching</div>
+        </div>
+        <div class="mode-card scheduled">
+          <h3>📅 Scheduled Booking Mode</h3>
+          <p>Plan ahead for weddings, corporate functions or parties. Browse verified DJ profiles, listen to mixes, read reviews, and send booking requests. Perfect for emerging creatives to build reputation.</p>
+          <div class="mode-tag">Portfolios • Ratings • Secure confirmations</div>
+        </div>
+      </div>
+      <div class="smart-match">
+        <h3><i class="fas fa-brain"></i> Smart Matching System</h3>
+        <p>Our algorithm shows "Best Matches" (top-rated pros) + "Rising Talent" (new creatives with potential). Balances quality & opportunity because every artist deserves a stage.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="testimonials">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Trusted by event organizers & creatives</span>
+        <h2>What the community says</h2>
+      </div>
+      <div class="testimonial-grid">
+        <div class="testimonial">
+          <i class="fas fa-quote-left"></i>
+          <p>"Emergency Gig Mode saved my wedding reception! DJ cancelled 2 hours before. Within 10 minutes, I booked an incredible DJ through GIGZA."</p>
+          <h4>- Thando M., Event Organizer</h4>
+        </div>
+        <div class="testimonial">
+          <i class="fas fa-quote-left"></i>
+          <p>"As a new DJ, getting exposure was hard. GIGZA gave me a platform to showcase my mixes and land my first 5 paid gigs. The Rising Talent boost is real."</p>
+          <h4>- DJ Zee, Creative</h4>
+        </div>
+        <div class="testimonial">
+          <i class="fas fa-quote-left"></i>
+          <p>"Finally a local solution that combines safety, verified reviews and seamless payment. No more chasing clients for deposits."</p>
+          <h4>- Lebo P., Photographer</h4>
+        </div>
+      </div>
+    </div>
+  </section>
+
+<section class="image-banner-section">
+  <div class="container">
+    <div class="image-banner-wrapper">
+      <img src="Users.jpg" />
+      <div class="image-banner-overlay">
+        <h3>Join hundreds of creatives already on GIGZA</h3>
+        <p>South Africa's fastest growing creative marketplace</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+  <section id="contact" class="cta">
+    <div class="container">
+      <div class="cta-box">
+        <h2>Ready to transform the gig economy?</h2>
+        <p>Get the GIGZA web app, works on any device, installable like a native app. Book or get booked with one tap.</p>
+        <button id="ctaInstallBtn" class="btn-install-large">
+          <i class="fas fa-download"></i> Install GIGZA App
+        </button>
+        <div class="pwa-note">Progressive Web App • Works offline • Instant access</div>
+      </div>
+    </div>
+  </section>
+
+  <div id="legalModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">Terms of Service</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer">
+        <button onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-logo">
+          <div class="logo">GIG<span>ZA</span></div>
+          <p>Connecting Talent to Opportunity. Empowering South Africa's creative workforce.</p>
+        </div>
+        <div class="footer-links">
+          <div>
+            <h4>Platform</h4>
+            <a href="/emergency-mode.html">Emergency Mode</a>
+            <a href="/scheduled-booking.html">Scheduled Booking</a>
+            <a href="/become-a-creative.html">Become a Creative</a>
+          </div>
+          <div>
+            <h4>Support</h4>
+            <a href="/help.html">Help Center</a>
+            <a href="/dispute.html">Dispute Resolution</a>
+            <a href="/safety.html">Safety Tips</a>
+          </div>
+          <div>
+            <h4>Legal</h4>
+            <a href="javascript:void(0)" onclick="openModal('terms')">Terms of Service</a>
+            <a href="javascript:void(0)" onclick="openModal('privacy')">Privacy Policy</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 GIGZA -  Your Gig Starts Here. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const jsVersion = Date.now();
+    document.write('<script src="script.js?v=' + jsVersion + '"><\/script>');
+  </script>
+</body>
+</html>
