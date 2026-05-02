@@ -1,7 +1,7 @@
 ﻿import React, { useState } from "react";
 import Login from "./Components/Login";
 import Verification from "./Components/Verification";
-import Dashboard from "./Components/Dashboard";
+import Dashboard from "./Components/DJDashboard";
 import Splash from "./Components/Splash";
 
 function App() {
