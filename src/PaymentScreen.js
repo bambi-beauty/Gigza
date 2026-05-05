@@ -1,266 +1,258 @@
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router";
-import {
-  ArrowLeft,
-  CreditCard,
-  Calendar,
-  Clock,
-  MapPin,
-  Check,
-} from "lucide-react";
-
-const mockBooking = {
-  djName: "DJ Pulse",
-  djImage: "https://images.unsplash.com/photo-1764510383709-14be6ec28548?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=200",
-  eventType: "Wedding",
-  date: "April 15, 2026",
-  time: "7:00 PM - 11:00 PM",
-  location: "Grand Hotel, NYC",
-  duration: 4,
-  hourlyRate: 250,
-  subtotal: 1000,
-  serviceFee: 100,
-  tax: 100,
-  total: 1200,
-  depositPercentage: 30,
-};
-
-const paymentMethods = [
-  { id: "card", name: "Credit/Debit Card", icon: CreditCard },
-  { id: "paypal", name: "PayPal", icon: CreditCard },
-  { id: "apple", name: "Apple Pay", icon: CreditCard },
-];
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Calendar, Clock, MapPin, ArrowLeft, Minus, Plus, Banknote, Users, Music } from "lucide-react";
+import { allDJs } from "./data"; 
 
 export function PaymentScreen() {
-  const { bookingId } = useParams();
+  const { djId } = useParams(); 
   const navigate = useNavigate();
-  const [selectedMethod, setSelectedMethod] = useState("card");
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiryDate, setExpiryDate] = useState("");
-  const [cvv, setCvv] = useState("");
-  const [cardName, setCardName] = useState("");
+  
+  const [dj, setDj] = useState(null);
+  
+  // --- The Complete Form State ---
+  const [eventDate, setEventDate] = useState("");
+  const [startTime, setStartTime] = useState("18:00");
+  const [hours, setHours] = useState(4); 
+  const [eventType, setEventType] = useState("Private Party");
+  const [selectedGenres, setSelectedGenres] = useState([]);
+  const [location, setLocation] = useState("");
+  const [guests, setGuests] = useState("");
+  const [budget, setBudget] = useState("");
+  const [notes, setNotes] = useState("");
+
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const depositAmount = (mockBooking.total * mockBooking.depositPercentage) / 100;
+  const availableGenres = ["House", "Techno", "Hip Hop", "EDM", "RnB", "Trance", "Drum & Bass", "Pop"];
+
+  useEffect(() => {
+    const selectedDj = allDJs.find(d => d.id.toString() === djId);
+    if (selectedDj) {
+      setDj(selectedDj);
+    } else {
+      setDj(allDJs[0]);
+    }
+  }, [djId]);
+
+  // Handle clicking genre buttons
+  const toggleGenre = (genre) => {
+    if (selectedGenres.includes(genre)) {
+      setSelectedGenres(selectedGenres.filter(g => g !== genre));
+    } else {
+      setSelectedGenres([...selectedGenres, genre]);
+    }
+  };
 
   const handlePayment = () => {
     setIsProcessing(true);
+    
     setTimeout(() => {
-      setIsProcessing(false);
+      const existingBookings = JSON.parse(localStorage.getItem("gigzaBookings")) || [];
+      
+      const newBooking = {
+        id: `BK-${Math.floor(Math.random() * 10000)}`,
+        djId: dj.id,
+        djName: dj.name,
+        djImage: dj.image,
+        eventType: eventType,
+        date: eventDate || new Date().toLocaleDateString(), 
+        time: startTime,
+        location: location || "Location TBD",
+        duration: `${hours} Hours`,
+        guests: guests,
+        genres: selectedGenres,
+        notes: notes,
+        status: "Upcoming",
+        totalPaid: dj.price * hours
+      };
+
+      localStorage.setItem("gigzaBookings", JSON.stringify([newBooking, ...existingBookings]));
       navigate("/bookings");
     }, 2000);
   };
 
+  if (!dj) return <div className="min-h-screen bg-black text-white text-center pt-20">Loading DJ...</div>;
+
+  const totalCost = dj.price * hours;
+
   return (
-    <div className="min-h-screen bg-black pb-4">
+    <div className="min-h-screen bg-black pb-24">
       {/* Header */}
-      <div className="bg-gradient-to-b from-purple-900/30 to-black px-6 pt-6 pb-6">
-        <div className="flex items-center gap-4 mb-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="bg-zinc-900 rounded-full p-2"
-          >
-            <ArrowLeft className="w-5 h-5 text-white" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Payment</h1>
-            <p className="text-sm text-zinc-400">Complete your booking</p>
-          </div>
+      <div className="bg-gradient-to-b from-purple-900/40 to-black px-6 pt-8 pb-6 border-b border-zinc-800 flex items-center gap-4 sticky top-0 z-10 backdrop-blur-md">
+        <button onClick={() => navigate(-1)} className="bg-zinc-900 rounded-full p-2 hover:bg-zinc-800 transition">
+          <ArrowLeft className="w-5 h-5 text-white" />
+        </button>
+        <div>
+          <h1 className="text-xl font-bold text-white">Book {dj.name}</h1>
+          <p className="text-zinc-400 text-sm">Fill out your event details</p>
         </div>
       </div>
 
-      <div className="px-6 space-y-6">
-        {/* Booking Summary */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-          <h2 className="text-lg font-semibold text-white mb-4">
-            Booking Summary
+      <div className="max-w-xl mx-auto px-6 mt-6 space-y-8">
+        
+        {/* Section 1: Date & Time */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-purple-400" /> Date & Time
           </h2>
-          <div className="flex items-center gap-3 mb-4 pb-4 border-b border-zinc-800">
-            <img
-              src={mockBooking.djImage}
-              alt={mockBooking.djName}
-              className="w-16 h-16 rounded-xl object-cover"
+          
+          <div>
+            <label className="text-zinc-400 text-sm mb-1 block">Event Date</label>
+            <input 
+              type="date" 
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 [color-scheme:dark]"
             />
-            <div>
-              <h3 className="font-semibold text-white">{mockBooking.djName}</h3>
-              <p className="text-sm text-purple-400">{mockBooking.eventType}</p>
-            </div>
           </div>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-2 text-zinc-400">
-              <Calendar className="w-4 h-4 text-purple-400" />
-              {mockBooking.date}
-            </div>
-            <div className="flex items-center gap-2 text-zinc-400">
-              <Clock className="w-4 h-4 text-purple-400" />
-              {mockBooking.time}
-            </div>
-            <div className="flex items-center gap-2 text-zinc-400">
-              <MapPin className="w-4 h-4 text-purple-400" />
-              {mockBooking.location}
-            </div>
-          </div>
-        </div>
 
-        {/* Payment Breakdown */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-          <h2 className="text-lg font-semibold text-white mb-4">
-            Payment Details
-          </h2>
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-zinc-400">
-                ${mockBooking.hourlyRate}/hr × {mockBooking.duration} hours
-              </span>
-              <span className="text-white">${mockBooking.subtotal}</span>
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="text-zinc-400 text-sm mb-1 block">Start Time</label>
+              <input 
+                type="time" 
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 [color-scheme:dark]"
+              />
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-zinc-400">Service Fee</span>
-              <span className="text-white">${mockBooking.serviceFee}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-zinc-400">Tax</span>
-              <span className="text-white">${mockBooking.tax}</span>
-            </div>
-            <div className="border-t border-zinc-800 pt-3">
-              <div className="flex justify-between">
-                <span className="font-semibold text-white">Total</span>
-                <span className="font-semibold text-white">
-                  ${mockBooking.total}
-                </span>
+            
+            <div className="flex-1">
+              <label className="text-zinc-400 text-sm mb-1 block">Duration (hrs)</label>
+              <div className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl p-2.5">
+                <button onClick={() => setHours(Math.max(1, hours - 1))} className="bg-zinc-800 p-1.5 rounded-lg hover:bg-zinc-700 text-white transition"><Minus className="w-4 h-4" /></button>
+                <span className="text-white font-bold w-4 text-center">{hours}</span>
+                <button onClick={() => setHours(hours + 1)} className="bg-purple-500 p-1.5 rounded-lg hover:bg-purple-600 text-white transition"><Plus className="w-4 h-4" /></button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Deposit Info */}
-        <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/50 rounded-2xl p-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-zinc-400">
-                Deposit Due ({mockBooking.depositPercentage}%)
-              </p>
-              <p className="text-2xl font-bold text-white mt-1">
-                ${depositAmount.toFixed(2)}
-              </p>
-              <p className="text-xs text-zinc-500 mt-1">
-                Remaining ${(mockBooking.total - depositAmount).toFixed(2)} due
-                at event
-              </p>
-            </div>
-          </div>
-        </div>
+        <hr className="border-zinc-800" />
 
-        {/* Payment Method */}
-        <div>
-          <h2 className="text-lg font-semibold text-white mb-4">
-            Payment Method
+        {/* Section 2: Event Type & Genres */}
+        <div className="space-y-6">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <Music className="w-5 h-5 text-purple-400" /> Vibe & Music
           </h2>
-          <div className="space-y-2">
-            {paymentMethods.map((method) => {
-              const Icon = method.icon;
-              return (
+
+          <div>
+            <label className="text-zinc-400 text-sm mb-1 block">Event Type</label>
+            <select 
+              value={eventType}
+              onChange={(e) => setEventType(e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500"
+            >
+              <option>Wedding</option>
+              <option>Birthday Party</option>
+              <option>Corporate Event</option>
+              <option>Club Night</option>
+              <option>Private Party</option>
+              <option>Festival</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-zinc-400 text-sm mb-3 block">Preferred Genres (Select multiple)</label>
+            <div className="flex flex-wrap gap-2">
+              {availableGenres.map(genre => (
                 <button
-                  key={method.id}
-                  onClick={() => setSelectedMethod(method.id)}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl border transition-colors ${
-                    selectedMethod === method.id
-                      ? "bg-purple-500/20 border-purple-500"
-                      : "bg-zinc-900 border-zinc-800"
+                  key={genre}
+                  onClick={() => toggleGenre(genre)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    selectedGenres.includes(genre) 
+                      ? "bg-purple-500 text-white border-transparent" 
+                      : "bg-zinc-900 text-zinc-400 border border-zinc-700 hover:border-purple-500 hover:text-white"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-5 h-5 text-purple-400" />
-                    <span className="text-white">{method.name}</span>
-                  </div>
-                  {selectedMethod === method.id && (
-                    <div className="bg-purple-500 rounded-full p-1">
-                      <Check className="w-3 h-3 text-white" />
-                    </div>
-                  )}
+                  {genre}
                 </button>
-              );
-            })}
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Card Details */}
-        {selectedMethod === "card" && (
+        <hr className="border-zinc-800" />
+
+        {/* Section 3: Event Details */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <Users className="w-5 h-5 text-purple-400" /> Event Details
+          </h2>
+
           <div>
-            <h2 className="text-lg font-semibold text-white mb-4">
-              Card Details
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm text-zinc-400 mb-2 block">
-                  Card Number
-                </label>
-                <input
-                  type="text"
-                  value={cardNumber}
-                  onChange={(e) => setCardNumber(e.target.value)}
-                  placeholder="1234 5678 9012 3456"
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm text-zinc-400 mb-2 block">
-                    Expiry Date
-                  </label>
-                  <input
-                    type="text"
-                    value={expiryDate}
-                    onChange={(e) => setExpiryDate(e.target.value)}
-                    placeholder="MM/YY"
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-zinc-400 mb-2 block">
-                    CVV
-                  </label>
-                  <input
-                    type="text"
-                    value={cvv}
-                    onChange={(e) => setCvv(e.target.value)}
-                    placeholder="123"
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm text-zinc-400 mb-2 block">
-                  Cardholder Name
-                </label>
-                <input
-                  type="text"
-                  value={cardName}
-                  onChange={(e) => setCardName(e.target.value)}
-                  placeholder="John Doe"
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
+            <label className="text-zinc-400 text-sm mb-1 block">Location</label>
+            <div className="relative">
+              <MapPin className="w-5 h-5 text-zinc-500 absolute left-3 top-3.5" />
+              <input 
+                type="text" 
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Venue name or address"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-white focus:outline-none focus:border-purple-500"
+              />
             </div>
           </div>
-        )}
 
-        {/* Confirm Button */}
-        <button
-          onClick={handlePayment}
-          disabled={isProcessing}
-          className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 disabled:opacity-50 text-white font-semibold py-4 rounded-xl shadow-lg shadow-purple-500/30"
-        >
-          {isProcessing ? (
-            <span>Processing...</span>
-          ) : (
-            <span>Pay ${depositAmount.toFixed(2)}</span>
-          )}
-        </button>
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="text-zinc-400 text-sm mb-1 block">Expected Guests</label>
+              <input 
+                type="number" 
+                value={guests}
+                onChange={(e) => setGuests(e.target.value)}
+                placeholder="e.g. 150"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500"
+              />
+            </div>
+            
+            <div className="flex-1">
+              <label className="text-zinc-400 text-sm mb-1 block">Expected Budget (R)</label>
+              <input 
+                type="number" 
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                placeholder="e.g. 5000"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500"
+              />
+            </div>
+          </div>
 
-        <p className="text-xs text-zinc-500 text-center">
-          By confirming, you agree to GIGZA's terms and conditions
-        </p>
+          <div>
+            <label className="text-zinc-400 text-sm mb-1 block">Additional Notes</label>
+            <textarea 
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Any special requests for the DJ?"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 h-24 resize-none"
+            ></textarea>
+          </div>
+        </div>
+
+        {/* Section 4: Total & Checkout Block */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 mt-8">
+          <div className="flex justify-between items-end mb-6">
+            <div>
+              <p className="text-zinc-400 text-sm mb-1">Final DJ Fee</p>
+              <h2 className="text-3xl font-bold text-white">R{totalCost}</h2>
+            </div>
+            <div className="text-right">
+              <p className="text-zinc-500 text-xs">Based on {hours} hours</p>
+            </div>
+          </div>
+
+          <button
+            onClick={handlePayment}
+            disabled={isProcessing}
+            className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-purple-500/30 transition-all flex justify-center items-center gap-2 disabled:opacity-50"
+          >
+            {isProcessing ? "Processing Booking..." : (
+              <>
+                <Banknote className="w-5 h-5" /> Continue to Payment
+              </>
+            )}
+          </button>
+        </div>
+
       </div>
     </div>
   );

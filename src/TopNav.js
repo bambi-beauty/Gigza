@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Calendar, Bell, DollarSign, User, Zap } from "lucide-react";
+import { Home, Calendar, Bell, User, Zap } from "lucide-react";
 
 export function TopNav() {
   const location = useLocation();
@@ -49,15 +49,7 @@ export function TopNav() {
             <span className="font-medium">Notifications</span>
           </Link>
 
-          <Link 
-            to="/dashboard" 
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-colors ${
-              isActive('/dashboard') ? 'bg-purple-500/20 text-purple-400' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-            }`}
-          >
-            <DollarSign className="w-5 h-5" />
-            <span className="font-medium">Earnings</span>
-          </Link>
+          
 
           <Link 
             to="/profile" 

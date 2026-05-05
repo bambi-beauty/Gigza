@@ -1,0 +1,424 @@
+import React, { useState, useEffect } from "react";
+import "./Login.css";
+import { FcGoogle } from "react-icons/fc";
+import { FaFacebook, FaArrowRight } from "react-icons/fa";
+import { AiOutlineMail, AiOutlineLock, AiOutlineUser } from "react-icons/ai";
+import { motion, AnimatePresence } from "framer-motion";
+import { signInWithPopup } from "firebase/auth";
+import { auth, googleProvider } from "../firebase";
+import { useUser } from "../UserContext/ThisUserContext";
+
+function Login({ goToVerification, goToSuccess }) {
+  const { login, signup, googleLogin, loading: authLoading, error: authError, setError } = useUser();
+  const [isLogin, setIsLogin] = useState(true);
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    confirmPassword: "",
+    name: ""
+  });
+  const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
+
+  // Floating particles background
+  const [particles, setParticles] = useState([]);
+  
+  useEffect(() => {
+    const particleArray = [];
+    for (let i = 0; i < 50; i++) {
+      particleArray.push({
+        id: i,
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        duration: 3 + Math.random() * 5,
+        delay: Math.random() * 5
+      });
+    }
+    setParticles(particleArray);
+  }, []);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: "" }));
+    }
+    if (authError) setError(null);
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.email) {
+      newErrors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = "Please enter a valid email";
+    }
+    
+    if (!isLogin) {
+      if (!formData.name) {
+        newErrors.name = "Name is required";
+      } else if (formData.name.length < 2) {
+        newErrors.name = "Name must be at least 2 characters";
+      }
+      
+      if (!formData.password) {
+        newErrors.password = "Password is required";
+      } else if (formData.password.length < 6) {
+        newErrors.password = "Password must be at least 6 characters";
+      }
+      
+      if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = "Passwords do not match";
+      }
+    } else {
+      if (!formData.password) {
+        newErrors.password = "Password is required";
+      }
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Handle Signup - No token, just creates account and sends OTP
+  const handleEmailSignup = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+    
+    setIsLoading(true);
+    
+    try {
+      const result = await signup(formData.name, formData.email, formData.password);
+      
+      if (result.success) {
+        // Store email temporarily for OTP verification
+        localStorage.setItem("verificationEmail", formData.email);
+        // Store user data for later use after OTP verification
+        localStorage.setItem("pendingUserName", formData.name);
+        // Navigate to verification screen
+        goToVerification();
+      } else {
+        setErrors({ submit: result.error || "Signup failed. Please try again." });
+      }
+    } catch (error) {
+      console.error("Signup error:", error);
+      setErrors({ submit: "An error occurred during signup. Please try again." });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle Login - Gets token immediately
+  const handleEmailLogin = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+    
+    setIsLoading(true);
+    
+    try {
+      const result = await login(formData.email, formData.password);
+      
+      if (result.success) {
+        // Navigate to main app
+        goToSuccess();
+      } else {
+        setErrors({ submit: result.error || "Login failed. Please check your credentials." });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      setErrors({ submit: "An error occurred during login. Please try again." });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle Google Login
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const { user } = result;
+      
+      console.log("Google user received:", { 
+        email: user.email, 
+        name: user.displayName,
+        uid: user.uid 
+      });
+      
+      // Use the googleLogin function from UserContext
+      const loginResult = await googleLogin(
+        user.email, 
+        user.displayName, 
+        user.uid
+      );
+      
+      if (loginResult.success) {
+        console.log("Google login successful, navigating to app");
+        goToSuccess();
+      } else {
+        setErrors({ submit: loginResult.error || "Google login failed. Please try again." });
+      }
+    } catch (error) {
+      console.error("Google login error:", error);
+      setErrors({ submit: `Google login failed: ${error.message}` });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle Facebook Login
+  const handleFacebookLogin = async () => {
+    setIsLoading(true);
+    
+    // For Facebook, you'll need to implement Facebook Login SDK
+    // Similar to Google login flow
+    setTimeout(() => {
+      setIsLoading(false);
+      setErrors({ submit: "Facebook login coming soon!" });
+    }, 1000);
+  };
+
+  const toggleMode = () => {
+    setIsLogin(!isLogin);
+    setErrors({});
+    setFormData({
+      email: "",
+      password: "",
+      confirmPassword: "",
+      name: ""
+    });
+    if (authError) setError(null);
+  };
+
+  // Combine loading states
+  const isLoadingState = isLoading || authLoading;
+
+  return (
+    <div className="login-container">
+      {/* Animated Background Particles */}
+      <div className="particles-bg">
+        {particles.map(particle => (
+          <div
+            key={particle.id}
+            className="particle"
+            style={{
+              left: `${particle.x}%`,
+              top: `${particle.y}%`,
+              animationDuration: `${particle.duration}s`,
+              animationDelay: `${particle.delay}s`
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Floating Orbs for extra flair */}
+      <div className="orb orb-1"></div>
+      <div className="orb orb-2"></div>
+      <div className="orb orb-3"></div>
+
+      <div className="login-wrapper">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="login-card"
+        >
+          {/* Animated Logo */}
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            className="logo-wrapper"
+          >
+            <div className="logo-icon">🎵</div>
+            <h1 className="logo">
+              Gigza
+              <motion.span
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="logo-sparkle"
+              >
+                ✨
+              </motion.span>
+            </h1>
+          </motion.div>
+
+          <motion.h2
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="title"
+          >
+            {isLogin ? "Welcome Back! 👋" : "Create Your Account 🎉"}
+          </motion.h2>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="subtitle"
+          >
+            {isLogin 
+              ? "Sign in to continue your music journey" 
+              : "Join Gigza and start your DJ adventure"}
+          </motion.p>
+
+          <AnimatePresence mode="wait">
+            <motion.form
+              key={isLogin ? "login" : "signup"}
+              initial={{ opacity: 0, x: isLogin ? -20 : 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: isLogin ? 20 : -20 }}
+              transition={{ duration: 0.3 }}
+              onSubmit={isLogin ? handleEmailLogin : handleEmailSignup}
+            >
+              {!isLogin && (
+                <div className="input-group">
+                  <AiOutlineUser className="input-icon" />
+                  <input
+                    type="text"
+                    name="name"
+                    placeholder="Full Name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    onFocus={() => setFocusedField("name")}
+                    onBlur={() => setFocusedField(null)}
+                    className={focusedField === "name" ? "focused" : ""}
+                    disabled={isLoadingState}
+                  />
+                  {errors.name && <span className="error">{errors.name}</span>}
+                </div>
+              )}
+
+              <div className="input-group">
+                <AiOutlineMail className="input-icon" />
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="Email Address"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  onFocus={() => setFocusedField("email")}
+                  onBlur={() => setFocusedField(null)}
+                  className={focusedField === "email" ? "focused" : ""}
+                  disabled={isLoadingState}
+                />
+                {errors.email && <span className="error">{errors.email}</span>}
+              </div>
+
+              <div className="input-group">
+                <AiOutlineLock className="input-icon" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  placeholder="Password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  onFocus={() => setFocusedField("password")}
+                  onBlur={() => setFocusedField(null)}
+                  className={focusedField === "password" ? "focused" : ""}
+                  disabled={isLoadingState}
+                />
+                <button
+                  type="button"
+                  className="toggle-password"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoadingState}
+                >
+                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
+                {errors.password && <span className="error">{errors.password}</span>}
+              </div>
+
+              {!isLogin && (
+                <div className="input-group">
+                  <AiOutlineLock className="input-icon" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="confirmPassword"
+                    placeholder="Confirm Password"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    onFocus={() => setFocusedField("confirmPassword")}
+                    onBlur={() => setFocusedField(null)}
+                    className={focusedField === "confirmPassword" ? "focused" : ""}
+                    disabled={isLoadingState}
+                  />
+                  {errors.confirmPassword && <span className="error">{errors.confirmPassword}</span>}
+                </div>
+              )}
+
+              {/* Display errors */}
+              {(errors.submit || authError) && (
+                <div className="error submit-error">
+                  {errors.submit || authError}
+                </div>
+              )}
+
+              <motion.button
+                whileHover={{ scale: isLoadingState ? 1 : 1.02 }}
+                whileTap={{ scale: isLoadingState ? 1 : 0.98 }}
+                type="submit"
+                className="continue-btn"
+                disabled={isLoadingState}
+              >
+                {isLoadingState ? (
+                  <div className="spinner"></div>
+                ) : (
+                  <>
+                    {isLogin ? "Sign In" : "Sign Up"}
+                    <FaArrowRight className="btn-icon" />
+                  </>
+                )}
+              </motion.button>
+            </motion.form>
+          </AnimatePresence>
+
+          <div className="divider">
+            <span>or continue with</span>
+          </div>
+
+          <div className="social-buttons">
+            <motion.button
+              whileHover={{ scale: isLoadingState ? 1 : 1.05 }}
+              whileTap={{ scale: isLoadingState ? 1 : 0.95 }}
+              className="social-btn google"
+              onClick={handleGoogleLogin}
+              disabled={isLoadingState}
+            >
+              <FcGoogle className="icon" />
+              Google
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: isLoadingState ? 1 : 1.05 }}
+              whileTap={{ scale: isLoadingState ? 1 : 0.95 }}
+              className="social-btn facebook"
+              onClick={handleFacebookLogin}
+              disabled={isLoadingState}
+            >
+              <FaFacebook className="icon" />
+              Facebook
+            </motion.button>
+          </div>
+
+          <div className="toggle-mode">
+            <p>
+              {isLogin ? "Don't have an account?" : "Already have an account?"}
+              <button onClick={toggleMode} className="toggle-btn" disabled={isLoadingState}>
+                {isLogin ? "Sign Up" : "Sign In"}
+                <FaArrowRight className="toggle-icon" />
+              </button>
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+export default Login;
