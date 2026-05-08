@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { io } from 'socket.io-client';
+// src/UserContext/SocketContext.js
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import io from 'socket.io-client';
 import { useUser } from './ThisUserContext';
 
 const SocketContext = createContext();
@@ -7,164 +8,174 @@ const SocketContext = createContext();
 export const useSocket = () => {
     const context = useContext(SocketContext);
     if (!context) {
-        throw new Error('useSocket must be used within SocketProvider');
+        throw new Error('useSocket must be used within a SocketProvider');
     }
     return context;
 };
 
 export const SocketProvider = ({ children }) => {
+    const { user, getToken } = useUser();
     const [socket, setSocket] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
     const [nearbyDJs, setNearbyDJs] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
-    const { getToken, user } = useUser();
-    const socketRef = useRef(null);
+    const [trackedDJ, setTrackedDJ] = useState(null);
+    const [djLocation, setDjLocation] = useState(null);
+    
+    const searchTimeoutRef = useRef(null);
 
     useEffect(() => {
         const token = getToken();
-        if (!token) return;
+        
+        if (!token || !user) {
+            console.log('No token or user, skipping socket connection');
+            return;
+        }
 
-        // Connect to WebSocket server
-        const socketInstance = io('http://localhost:5000', {
+        console.log('Connecting to WebSocket...');
+        
+        const newSocket = io('http://localhost:5000', {
             auth: { token },
-            transports: ['websocket'],
-            reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000
+            transports: ['websocket', 'polling']
         });
 
-        socketInstance.on('connect', () => {
-            console.log('Socket connected:', socketInstance.id);
+        newSocket.on('connect', () => {
+            console.log('WebSocket connected');
             setIsConnected(true);
         });
 
-        socketInstance.on('disconnect', () => {
-            console.log('Socket disconnected');
+        newSocket.on('disconnect', () => {
+            console.log('WebSocket disconnected');
             setIsConnected(false);
+            setIsSearching(false);
         });
 
-        socketInstance.on('connect_error', (error) => {
-            console.error('Socket connection error:', error);
+        newSocket.on('connect_error', (error) => {
+            console.error('WebSocket connection error:', error);
             setIsConnected(false);
         });
 
         // Listen for nearby DJs response
-        socketInstance.on('user:nearbyDJs', (data) => {
-            console.log('Nearby DJs received:', data);
-            if (data.success) {
+        newSocket.on('user:nearbyDJs', (data) => {
+            console.log('Received nearby DJs:', data);
+            setIsSearching(false);
+            
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+            
+            if (data.success && data.djs) {
                 setNearbyDJs(data.djs);
-                setIsSearching(false);
+            } else {
+                setNearbyDJs([]);
             }
         });
 
-        // Listen for DJ location updates (real-time)
-        socketInstance.on('dj:locationUpdate', (data) => {
+        // Listen for DJ location updates
+        newSocket.on('dj:locationUpdate', (data) => {
             console.log('DJ location update:', data);
-            // Update the location of a specific DJ in your list
-            setNearbyDJs(prev => prev.map(dj => 
-                dj.dj_id === data.djId 
-                    ? { ...dj, latitude: data.location.latitude, longitude: data.location.longitude }
-                    : dj
-            ));
+            if (trackedDJ === data.djId) {
+                setDjLocation(data.location);
+            }
         });
 
         // Listen for DJ status changes
-        socketInstance.on('dj:statusChanged', (data) => {
+        newSocket.on('dj:statusChanged', (data) => {
             console.log('DJ status changed:', data);
-            setNearbyDJs(prev => prev.map(dj =>
-                dj.dj_id === data.djId
+            // Update nearby DJs list with new status
+            setNearbyDJs(prev => prev.map(dj => 
+                dj.dj_id === data.djId 
                     ? { ...dj, is_online: data.isOnline }
                     : dj
             ));
         });
 
-        socketRef.current = socketInstance;
-        setSocket(socketInstance);
+        // Listen for errors
+        newSocket.on('error', (error) => {
+            console.error('Socket error:', error);
+        });
+
+        setSocket(newSocket);
 
         return () => {
-            socketInstance.disconnect();
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+            newSocket.disconnect();
         };
-    }, [getToken]);
+    }, [user, getToken]);
 
-    // Search for nearby DJs
     const searchNearbyDJs = (latitude, longitude, radius_km = 1.5) => {
-        if (!socketRef.current || !isConnected) {
+        if (!socket || !isConnected) {
             console.error('Socket not connected');
             return;
         }
-
+        
+        console.log(`Searching for DJs within ${radius_km}km`);
         setIsSearching(true);
-        socketRef.current.emit('user:searchNearbyDJs', {
-            latitude,
-            longitude,
-            radius_km
-        });
+        setNearbyDJs([]);
+        
+        // Set timeout for search response
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
+        
+        searchTimeoutRef.current = setTimeout(() => {
+            if (isSearching) {
+                console.log('Search timeout - no response');
+                setIsSearching(false);
+                setNearbyDJs([]);
+            }
+        }, 10000);
+        
+        socket.emit('user:searchNearbyDJs', { latitude, longitude, radius_km });
     };
 
-    // Track a specific DJ
     const trackDJ = (djId) => {
-        if (!socketRef.current || !isConnected) return;
-        socketRef.current.emit('user:trackDJ', { djId });
+        if (!socket || !isConnected) return;
+        
+        setTrackedDJ(djId);
+        socket.emit('user:trackDJ', { djId });
     };
 
-    // Request ride from DJ
+    const untrackDJ = (djId) => {
+        if (!socket || !isConnected) return;
+        
+        setTrackedDJ(null);
+        setDjLocation(null);
+        socket.emit('user:untrackDJ', { djId });
+    };
+
+    const requestETA = (djId, userLatitude, userLongitude, callback) => {
+        if (!socket || !isConnected) return;
+        
+        socket.emit('user:requestETA', { djId, userLatitude, userLongitude }, (response) => {
+            if (callback) callback(response);
+        });
+    };
+
     const requestRide = (djId, pickupLocation, eventDetails) => {
-        if (!socketRef.current || !isConnected) return;
+        if (!socket || !isConnected) return;
         
-        return new Promise((resolve, reject) => {
-            socketRef.current.emit('user:requestRide', {
-                djId,
-                pickupLocation,
-                eventDetails
-            });
-            
-            // Listen for response
-            socketRef.current.once('user:rideRequested', (response) => {
-                if (response.success) {
-                    resolve(response);
-                } else {
-                    reject(response);
-                }
-            });
-            
-            setTimeout(() => reject(new Error('Request timeout')), 10000);
-        });
+        socket.emit('user:requestRide', { djId, pickupLocation, eventDetails });
     };
 
-    // Request ETA
-    const requestETA = (djId, userLatitude, userLongitude) => {
-        if (!socketRef.current || !isConnected) return;
-        
-        return new Promise((resolve, reject) => {
-            socketRef.current.emit('user:requestETA', {
-                djId,
-                userLatitude,
-                userLongitude
-            });
-            
-            socketRef.current.once('user:ETA', (response) => {
-                if (response.success) {
-                    resolve(response);
-                } else {
-                    reject(response);
-                }
-            });
-            
-            setTimeout(() => reject(new Error('ETA request timeout')), 5000);
-        });
+    const value = {
+        socket,
+        isConnected,
+        nearbyDJs,
+        isSearching,
+        trackedDJ,
+        djLocation,
+        searchNearbyDJs,
+        trackDJ,
+        untrackDJ,
+        requestETA,
+        requestRide
     };
 
     return (
-        <SocketContext.Provider value={{
-            socket,
-            isConnected,
-            nearbyDJs,
-            isSearching,
-            searchNearbyDJs,
-            trackDJ,
-            requestRide,
-            requestETA
-        }}>
+        <SocketContext.Provider value={value}>
             {children}
         </SocketContext.Provider>
     );
