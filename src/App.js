@@ -1,10 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { UserProvider } from "./UserContext/ThisUserContext";
-import { SocketProvider } from "./UserContext/SocketContext"; // Add this import
+import { SocketProvider } from "./UserContext/SocketContext";
 import Splash from "./components/Splash";
 import Login from "./components/Login";
 import Verification from "./components/Verification";
+import { ProfileSetupScreen } from "./ProfileSetupScreen";
 import { TopNav } from "./TopNav";
 import { HomeScreen } from "./HomeScreen";
 import { BookingManagementScreen } from "./BookingManagementScreen";
@@ -18,19 +19,16 @@ import { ScheduledBookingScreen } from "./ScheduledBookingScreen";
 import { UserProfileScreen } from "./UserProfileScreen";
 import { DJRequestsScreen } from "./DJRequestsScreen";
 import { ReviewScreen } from "./ReviewScreen";
+import { DJApplicationScreen } from "./DJApplicationScreen"; // ✅ ADD THIS IMPORT
 
-// Protected Route wrapper component
 function ProtectedRoute({ children }) {
   const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
-  
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
   return children;
 }
 
-// Layout wrapper for authenticated routes (includes TopNav)
 function AuthenticatedLayout({ children }) {
   return (
     <>
@@ -40,26 +38,35 @@ function AuthenticatedLayout({ children }) {
   );
 }
 
-// Component that handles navigation and routing
 function AppContent() {
   const [isLoading, setIsLoading] = useState(true);
+  const [showProfileSetup, setShowProfileSetup] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Only show splash screen briefly, then check auth
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 1500); // Short splash screen or remove entirely
+    }, 1500);
 
     return () => clearTimeout(timer);
   }, []);
 
-  // Navigation functions using React Router
-  const goToVerification = () => {
-    navigate("/verify");
+  // Check on mount if user needs profile setup
+  useEffect(() => {
+    const needsProfileSetup = localStorage.getItem("needsProfileSetup") === "true";
+    if (needsProfileSetup && !window.location.pathname.includes("/profile-setup")) {
+      setShowProfileSetup(true);
+      navigate("/profile-setup");
+    }
+  }, []);
+
+  const goToProfileSetup = () => {
+    localStorage.setItem("needsProfileSetup", "true");
+    navigate("/profile-setup");
   };
 
-  const goToSuccess = () => {
+  const goToHome = () => {
+    localStorage.removeItem("needsProfileSetup");
     navigate("/");
   };
 
@@ -71,10 +78,18 @@ function AppContent() {
   return (
     <Routes>
       {/* Public Auth Routes - No TopNav */}
-      <Route path="/login" element={<Login goToVerification={goToVerification} goToSuccess={goToSuccess} />} />
-      <Route path="/verify" element={<Verification goToSuccess={goToSuccess} />} />
+      <Route 
+        path="/login" 
+        element={<Login goToProfileSetup={goToProfileSetup} goToHome={goToHome} />} 
+      />
+      <Route 
+        path="/profile-setup" 
+        element={<ProfileSetupScreen onComplete={goToHome} onSkip={goToHome} />} 
+      />
+      {/* Verification route - commented out as we're using auto-verify */}
+      {/* <Route path="/verify" element={<Verification goToSuccess={goToHome} />} /> */}
 
-      {/* Protected Routes with TopNav */}
+      {/* Protected Routes */}
       <Route
         path="/"
         element={
@@ -186,6 +201,18 @@ function AppContent() {
         }
       />
       
+      {/* ✅ ADDED: DJ Application Route */}
+      <Route
+        path="/apply-dj"
+        element={
+          <ProtectedRoute>
+            <AuthenticatedLayout>
+              <DJApplicationScreen />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        }
+      />
+      
       {/* Catch all route - redirect to login if not authenticated, else home */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -196,7 +223,7 @@ function AppContent() {
 function App() {
   return (
     <UserProvider>
-      <SocketProvider> {/* Add SocketProvider here */}
+      <SocketProvider>
         <BrowserRouter>
           <AppContent />
         </BrowserRouter>

@@ -34,7 +34,7 @@ export const SocketProvider = ({ children }) => {
 
         console.log('Connecting to WebSocket...');
         
-        const newSocket = io('http://localhost:5000', {
+        const newSocket = io('https://gigza-testing-9.onrender.com/', {
             auth: { token },
             transports: ['websocket', 'polling']
         });

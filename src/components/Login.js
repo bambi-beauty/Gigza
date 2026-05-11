@@ -8,7 +8,7 @@ import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../firebase";
 import { useUser } from "../UserContext/ThisUserContext";
 
-function Login({ goToVerification, goToSuccess }) {
+function Login({ goToProfileSetup, goToHome }) {
   const { login, signup, googleLogin, loading: authLoading, error: authError, setError } = useUser();
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
@@ -83,7 +83,7 @@ function Login({ goToVerification, goToSuccess }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle Signup - No token, just creates account and sends OTP
+  // Handle Signup - Creates account, auto-verified, goes to profile setup
   const handleEmailSignup = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -94,12 +94,11 @@ function Login({ goToVerification, goToSuccess }) {
       const result = await signup(formData.name, formData.email, formData.password);
       
       if (result.success) {
-        // Store email temporarily for OTP verification
-        localStorage.setItem("verificationEmail", formData.email);
-        // Store user data for later use after OTP verification
-        localStorage.setItem("pendingUserName", formData.name);
-        // Navigate to verification screen
-        goToVerification();
+        // Store user info for profile setup
+        localStorage.setItem("newUserEmail", formData.email);
+        localStorage.setItem("newUserName", formData.name);
+        // Go to profile setup screen
+        goToProfileSetup();
       } else {
         setErrors({ submit: result.error || "Signup failed. Please try again." });
       }
@@ -111,7 +110,7 @@ function Login({ goToVerification, goToSuccess }) {
     }
   };
 
-  // Handle Login - Gets token immediately
+  // Handle Login - Gets token and goes to home
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -122,8 +121,7 @@ function Login({ goToVerification, goToSuccess }) {
       const result = await login(formData.email, formData.password);
       
       if (result.success) {
-        // Navigate to main app
-        goToSuccess();
+        goToHome();
       } else {
         setErrors({ submit: result.error || "Login failed. Please check your credentials." });
       }
@@ -149,7 +147,6 @@ function Login({ goToVerification, goToSuccess }) {
         uid: user.uid 
       });
       
-      // Use the googleLogin function from UserContext
       const loginResult = await googleLogin(
         user.email, 
         user.displayName, 
@@ -157,8 +154,14 @@ function Login({ goToVerification, goToSuccess }) {
       );
       
       if (loginResult.success) {
-        console.log("Google login successful, navigating to app");
-        goToSuccess();
+        if (loginResult.user?.isNewUser) {
+          // New user - go to profile setup
+          localStorage.setItem("newUserEmail", user.email);
+          localStorage.setItem("newUserName", user.displayName);
+          goToProfileSetup();
+        } else {
+          goToHome();
+        }
       } else {
         setErrors({ submit: loginResult.error || "Google login failed. Please try again." });
       }
@@ -173,9 +176,6 @@ function Login({ goToVerification, goToSuccess }) {
   // Handle Facebook Login
   const handleFacebookLogin = async () => {
     setIsLoading(true);
-    
-    // For Facebook, you'll need to implement Facebook Login SDK
-    // Similar to Google login flow
     setTimeout(() => {
       setIsLoading(false);
       setErrors({ submit: "Facebook login coming soon!" });
@@ -194,7 +194,6 @@ function Login({ goToVerification, goToSuccess }) {
     if (authError) setError(null);
   };
 
-  // Combine loading states
   const isLoadingState = isLoading || authLoading;
 
   return (

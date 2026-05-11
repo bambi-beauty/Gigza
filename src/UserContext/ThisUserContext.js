@@ -16,37 +16,31 @@ export const UserProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
-  // Base API URL
-  const BASE_API = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  // Base API URL - Updated to your new backend
+  const BASE_API ='https://gigza-testing-11.onrender.com';
 
   // Helper function to make fetch requests
   const fetchWithNgrok = useCallback(async (url, options = {}) => {
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'ngrok-skip-browser-warning': '69420',
       ...options.headers,
     };
 
-    // Add token if available
     const token = localStorage.getItem("token");
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
     try {
-      console.log(`📡 ${options.method || 'GET'} request to:`, url);
-      
       const response = await fetch(url, {
         ...options,
         headers,
       });
 
-      console.log(`📡 Response status: ${response.status}`);
+      console.log(`📡 Response status: ${response.status} for ${url}`);
 
-      // Handle 401 Unauthorized
       if (response.status === 401) {
-        // Token might be expired
         const data = await response.json().catch(() => ({}));
         if (data.message?.includes('expired') || data.message?.includes('invalid')) {
           logout();
@@ -54,7 +48,6 @@ export const UserProvider = ({ children }) => {
         }
       }
 
-      // Check content type
       const contentType = response.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
         const textResponse = await response.text();
@@ -69,7 +62,6 @@ export const UserProvider = ({ children }) => {
     }
   }, []);
 
-  // Initialize auth state from localStorage
   useEffect(() => {
     const initializeAuth = () => {
       const token = localStorage.getItem("token");
@@ -80,7 +72,6 @@ export const UserProvider = ({ children }) => {
           const parsedUser = JSON.parse(userData);
           setUser(parsedUser);
           setIsAuthenticated(true);
-          console.log("✅ Auth initialized from localStorage");
         } catch (err) {
           console.error("Failed to parse user data:", err);
           clearAuthData();
@@ -88,11 +79,9 @@ export const UserProvider = ({ children }) => {
       }
       setLoading(false);
     };
-    
     initializeAuth();
   }, []);
 
-  // Clear auth data
   const clearAuthData = useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -103,16 +92,17 @@ export const UserProvider = ({ children }) => {
     setIsAuthenticated(false);
   }, []);
 
-  // ========== SIGNUP ==========
+  // ========== SIGNUP (No OTP needed) ==========
   const signup = async (username, email, password) => {
     setError(null);
     setLoading(true);
     
     try {
-      console.log("📝 Signing up user:", { username, email });
+      console.log("📝 Signing up at:", `${BASE_API}/api/auth/signup`);
       
-      const response = await fetchWithNgrok(`${BASE_API}/auth/signup`, {
+      const response = await fetch(`${BASE_API}/api/auth/signup`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password })
       });
       
@@ -123,16 +113,13 @@ export const UserProvider = ({ children }) => {
         throw new Error(data.message || 'Signup failed');
       }
       
-      if (data.success) {
-        // Store email temporarily for OTP verification
-        localStorage.setItem("verificationEmail", email);
-        localStorage.setItem("pendingUserName", username);
-        
+      if (data.success && data.token) {
+        // Auto-login after signup
+        setAuthData(data.token, data.user);
         return { 
           success: true, 
-          message: "Verification code sent to your email",
-          user: data.user,
-          nextStep: "verify_otp"
+          message: "Account created successfully!",
+          user: data.user
         };
       } else {
         throw new Error(data.message || 'Signup failed');
@@ -153,24 +140,17 @@ export const UserProvider = ({ children }) => {
     setLoading(true);
     
     try {
-      console.log("🔐 Logging in user:", { email });
+      console.log("🔐 Logging in at:", `${BASE_API}/api/auth/login`);
       
-      const response = await fetchWithNgrok(`${BASE_API}/auth/login`, {
+      const response = await fetch(`${BASE_API}/api/auth/login`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
       
       const data = await response.json();    
+      
       if (!response.ok) {
-        if (response.status === 403 && data.needsVerification) {
-          localStorage.setItem("verificationEmail", email);
-          return { 
-            success: false, 
-            needsVerification: true, 
-            message: "Please verify your email first. OTP sent.",
-            email: data.email
-          };
-        }
         throw new Error(data.message || 'Login failed');
       }
       
@@ -190,49 +170,36 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  // ========== VERIFY OTP ==========
-  const verifyOTP = async (email, otp) => {
+  // ========== GOOGLE LOGIN ==========
+  const googleLogin = async (email, name, googleId) => {
     setError(null);
     setLoading(true);
     
     try {
-      console.log("🔑 Verifying OTP for:", { email });
+      console.log("🔐 Google login at:", `${BASE_API}/api/auth/google-login`);
       
-      const response = await fetchWithNgrok(`${BASE_API}/auth/verify-otp`, {
+      const response = await fetch(`${BASE_API}/api/auth/google-login`, {
         method: 'POST',
-        body: JSON.stringify({ email, otp })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name, googleId })
       });
       
       const data = await response.json();
-      console.log("Verify OTP response:", data);
+      console.log("Google login response:", data);
       
       if (!response.ok) {
-        throw new Error(data.message || 'OTP verification failed');
+        throw new Error(data.message || 'Google login failed');
       }
       
       if (data.success && data.token) {
-        // Create user object for auth
-        const userData = {
-          id: data.userId,
-          email: email,
-          username: localStorage.getItem("pendingUserName") || email.split('@')[0],
-          usertype: 'user',
-          email_verified: true
-        };
-        
-        setAuthData(data.token, userData);
-        
-        // Clear pending verification data
-        localStorage.removeItem("verificationEmail");
-        localStorage.removeItem("pendingUserName");
-        
-        return { success: true, user: userData, token: data.token };
+        setAuthData(data.token, data.user);
+        return { success: true, user: data.user };
       } else {
-        throw new Error(data.message || 'OTP verification failed');
+        throw new Error(data.message || 'Google login failed - no token received');
       }
       
     } catch (error) {
-      console.error("OTP verification failed:", error);
+      console.error("Google login failed:", error);
       setError(error.message);
       return { success: false, error: error.message };
     } finally {
@@ -240,32 +207,15 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  // ========== RESEND OTP ==========
+  // ========== VERIFY OTP (Deprecated - kept for compatibility) ==========
+  const verifyOTP = async (email, otp) => {
+    // No OTP needed - auto verified
+    return { success: true, message: "Email already verified" };
+  };
+
+  // ========== RESEND OTP (Deprecated - kept for compatibility) ==========
   const resendOTP = async (email) => {
-    setError(null);
-    setLoading(true);
-    
-    try {
-      const response = await fetchWithNgrok(`${BASE_API}/auth/resend-otp`, {
-        method: 'POST',
-        body: JSON.stringify({ email })
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Resend OTP failed');
-      }
-      
-      return { success: true, message: "New verification code sent to your email" };
-      
-    } catch (error) {
-      console.error("Resend OTP failed:", error);
-      setError(error.message);
-      return { success: false, error: error.message };
-    } finally {
-      setLoading(false);
-    }
+    return { success: true, message: "No OTP needed. Email is auto-verified." };
   };
 
   // ========== COMPLETE PROFILE ==========
@@ -274,8 +224,9 @@ export const UserProvider = ({ children }) => {
     setLoading(true);
     
     try {
-      const response = await fetchWithNgrok(`${BASE_API}/auth/complete-profile`, {
+      const response = await fetch(`${BASE_API}/api/auth/complete-profile`, {
         method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userid, ...profileData })
       });
       
@@ -286,16 +237,11 @@ export const UserProvider = ({ children }) => {
       }
       
       if (data.success) {
-        // Update user data with profile info
         if (user) {
-          const updatedUser = {
-            ...user,
-            ...profileData
-          };
+          const updatedUser = { ...user, ...profileData };
           localStorage.setItem("user", JSON.stringify(updatedUser));
           setUser(updatedUser);
         }
-        
         return { success: true, profile: data.profile };
       } else {
         throw new Error(data.message || 'Profile completion failed');
@@ -316,20 +262,17 @@ export const UserProvider = ({ children }) => {
     if (!token) return null;
     
     try {
-      const response = await fetchWithNgrok(`${BASE_API}/auth/profile`, {
-        method: 'GET'
+      const response = await fetch(`${BASE_API}/api/auth/profile`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      
       const data = await response.json();
-      
       if (response.ok && data.success) {
         const userData = data.data || data;
         setUser(prev => ({ ...prev, ...userData }));
         return userData;
       }
-      
       return null;
-      
     } catch (error) {
       console.error("Get profile failed:", error);
       return null;
@@ -342,8 +285,9 @@ export const UserProvider = ({ children }) => {
     setLoading(true);
     
     try {
-      const response = await fetchWithNgrok(`${BASE_API}/auth/profile`, {
+      const response = await fetch(`${BASE_API}/api/auth/profile`, {
         method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(profileData)
       });
       
@@ -354,13 +298,11 @@ export const UserProvider = ({ children }) => {
       }
       
       if (data.success && data.profile) {
-        // Update user state
         if (user) {
           const updatedUser = { ...user, ...data.profile };
           localStorage.setItem("user", JSON.stringify(updatedUser));
           setUser(updatedUser);
         }
-        
         return { success: true, profile: data.profile };
       } else {
         throw new Error(data.message || 'Profile update failed');
@@ -376,46 +318,34 @@ export const UserProvider = ({ children }) => {
   };
 
   // ========== LOGOUT ==========
-  const logout = useCallback(() => {
-    console.log("🚪 Logging out user");
-    
-    // Clear all auth data from localStorage
+  const logout = useCallback(() => {  
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("isAuthenticated");
     localStorage.removeItem("verificationEmail");
     localStorage.removeItem("pendingUserName");
-    
-    // Clear session storage
     sessionStorage.clear();
-    
-    // Reset state
     setUser(null);
     setIsAuthenticated(false);
     setError(null);
-    
     return { success: true };
   }, []);
 
-  // ========== APPLY TO BECOME DJ ==========
+  // ========== DJ FUNCTIONS ==========
   const applyToBecomeDJ = async (applicationData) => {
     setError(null);
     setLoading(true);
     
     try {
-      const response = await fetchWithNgrok(`${BASE_API}/dj/apply`, {
+      const response = await fetch(`${BASE_API}/api/dj/apply`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(applicationData)
       });
       
       const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Application failed');
-      }
-      
+      if (!response.ok) throw new Error(data.message || 'Application failed');
       return { success: true, application: data.application };
-      
     } catch (error) {
       console.error("DJ application failed:", error);
       setError(error.message);
@@ -425,21 +355,16 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  // ========== GET DJ APPLICATION STATUS ==========
   const getDJApplicationStatus = async () => {
     try {
-      const response = await fetchWithNgrok(`${BASE_API}/dj/application-status`, {
+      const response = await fetch(`${BASE_API}/api/dj/application-status`, {
         method: 'GET'
       });
-      
       const data = await response.json();
-      
       if (response.ok && data.success) {
         return { success: true, application: data.application };
       }
-      
       return { success: false, application: null };
-      
     } catch (error) {
       console.error("Get DJ application status failed:", error);
       return { success: false, error: error.message };
@@ -460,29 +385,21 @@ export const UserProvider = ({ children }) => {
   }, []);
 
   const value = {
-    // State
     user,
     loading,
     error,
     isAuthenticated,
-    
-    // Auth functions
     login,
     signup,
+    googleLogin,
     logout,
     verifyOTP,
     resendOTP,
-    
-    // Profile functions
     completeProfile,
     getUserProfile,
     updateProfile,
-    
-    // DJ functions
     applyToBecomeDJ,
     getDJApplicationStatus,
-    
-    // Helpers
     getToken,
     setError,
     clearAuthData

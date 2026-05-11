@@ -1,27 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Zap, MapPin, ArrowLeft, Star, Clock, WifiOff, RefreshCw, Loader2, Navigation } from "lucide-react";
-import { useSocket } from "./UserContext/SocketContext";
+import { Zap, MapPin, ArrowLeft, Star, Clock, RefreshCw, Loader2 } from "lucide-react";
 import { useUser } from "./UserContext/ThisUserContext";
+import { getNearbyDJs } from "./services/djService";
 
 export function EmergencyDJScreen() {
   const navigate = useNavigate();
   const { user } = useUser();
-  const { 
-    searchNearbyDJs, 
-    nearbyDJs, 
-    isSearching: socketSearching, 
-    isConnected,
-    trackDJ,
-    untrackDJ
-  } = useSocket();
   
   const [isSearching, setIsSearching] = useState(true);
   const [foundDJ, setFoundDJ] = useState(null);
   const [error, setError] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [locationError, setLocationError] = useState(null);
-  const [searchRadius, setSearchRadius] = useState(2);
+  const [searchRadius, setSearchRadius] = useState(10);
+  const [isExpandingRadius, setIsExpandingRadius] = useState(false);
+  const [nearbyDJsList, setNearbyDJsList] = useState([]);
   
   const searchTimerRef = useRef(null);
   const locationRetryCount = useRef(0);
@@ -34,41 +28,107 @@ export function EmergencyDJScreen() {
     }
   };
 
-  // Start search timeout timer
-  const startSearchTimeout = () => {
-    clearSearchTimeout();
-    
-    searchTimerRef.current = setTimeout(() => {
-      console.log("Search timeout reached - no DJs found");
-      if (isSearching && !foundDJ && !error) {
-        setError("No DJs found in your area. Please try expanding your search radius.");
-        setIsSearching(false);
+  // Search for nearby DJs using REST API
+  const searchForNearbyDJs = async (latitude, longitude, radius) => {
+    try {
+      console.log(`🔍 Searching for DJs within ${radius}km of (${latitude}, ${longitude})`);
+      
+      const result = await getNearbyDJs(latitude, longitude, radius);
+      
+      console.log("📡 API Response:", result);
+      
+      if (result.success && result.djs && result.djs.length > 0) {
+        // Sort by distance (already sorted by API)
+        const sortedDJs = [...result.djs].sort((a, b) => 
+          parseFloat(a.distance_km) - parseFloat(b.distance_km)
+        );
+        
+        const closestDJ = sortedDJs[0];
+        console.log(`✅ Found ${result.djs.length} DJs, closest is ${closestDJ.name} at ${closestDJ.distance_km}km`);
+        
+        return { success: true, dj: closestDJ, allDJs: sortedDJs, total: result.djs.length };
+      } else {
+        console.log(`❌ No DJs found within ${radius}km`);
+        return { success: false, total: 0 };
       }
-    }, 10000);
+    } catch (err) {
+      console.error("Error searching for DJs:", err);
+      throw err;
+    }
   };
 
-  // Get user's current location
-  const getUserLocation = () => {
+  // Search with increasing radius until found
+  const findClosestDJ = async (latitude, longitude, initialRadius = 10) => {
+    setIsSearching(true);
+    setError(null);
+    setFoundDJ(null);
+    setNearbyDJsList([]);
+    setIsExpandingRadius(false);
+    
+    // Try increasing radii
+    const radii = [5, 10, 20, 50];
+    let startIndex = radii.indexOf(initialRadius);
+    if (startIndex === -1) startIndex = 0;
+    
+    for (let i = startIndex; i < radii.length; i++) {
+      const currentRadius = radii[i];
+      setSearchRadius(currentRadius);
+      
+      if (i > startIndex) {
+        setIsExpandingRadius(true);
+      }
+      
+      console.log(`🔍 Trying radius: ${currentRadius}km`);
+      
+      try {
+        const result = await searchForNearbyDJs(latitude, longitude, currentRadius);
+        
+        if (result.success && result.dj) {
+          clearSearchTimeout();
+          setFoundDJ(result.dj);
+          setNearbyDJsList(result.allDJs || []);
+          setIsSearching(false);
+          setIsExpandingRadius(false);
+          return;
+        }
+      } catch (err) {
+        console.error(`Error searching radius ${currentRadius}km:`, err);
+      }
+      
+      // If not found and not the last radius, continue to next radius
+      if (i < radii.length - 1) {
+        console.log(`No DJs within ${currentRadius}km, expanding to ${radii[i + 1]}km...`);
+      }
+    }
+    
+    // If we get here, no DJs found in any radius
+    clearSearchTimeout();
+    setError("No DJs found in your area within 50km. Please try again later or contact support.");
+    setIsSearching(false);
+    setIsExpandingRadius(false);
+  };
+
+  // Get user's current location and find closest DJ
+  const getUserLocationAndFindDJ = () => {
     if (!navigator.geolocation) {
       setLocationError("Geolocation is not supported by your browser");
       setIsSearching(false);
       return;
     }
 
+    setIsSearching(true);
+    setLocationError(null);
+
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude } = position.coords;
         setUserLocation({ latitude, longitude });
         locationRetryCount.current = 0;
         
-        if (isConnected) {
-          console.log(`Starting search for DJs at (${latitude}, ${longitude}) within ${searchRadius}km`);
-          searchNearbyDJs(latitude, longitude, searchRadius);
-          startSearchTimeout();
-        } else {
-          setError("Connecting to server...");
-          setIsSearching(false);
-        }
+        console.log(`📍 User location: ${latitude}, ${longitude}`);
+        
+        // Start searching for closest DJ
+        await findClosestDJ(latitude, longitude, searchRadius);
       },
       (error) => {
         console.error("Location error:", error);
@@ -101,66 +161,40 @@ export function EmergencyDJScreen() {
 
   // Initialize on mount
   useEffect(() => {
-    getUserLocation();
+    getUserLocationAndFindDJ();
     
     return () => {
       clearSearchTimeout();
-      if (foundDJ) {
-        untrackDJ(foundDJ.dj_id);
-      }
     };
   }, []);
 
-  // Listen for nearby DJs from socket
-  useEffect(() => {
-    if (!socketSearching && nearbyDJs.length > 0 && isSearching) {
-      clearSearchTimeout();
+  // Handle search with custom radius
+  const handleSearchWithRadius = async (radiusKm) => {
+    if (userLocation) {
+      setSearchRadius(radiusKm);
+      setIsSearching(true);
+      setError(null);
+      setFoundDJ(null);
+      setNearbyDJsList([]);
+      setIsExpandingRadius(false);
       
-      // Filter online DJs
-      const onlineDJs = nearbyDJs.filter(dj => dj.is_online !== false);
-      
-      if (onlineDJs.length > 0) {
-        const closestDJ = onlineDJs.sort((a, b) => 
-          parseFloat(a.distance_km) - parseFloat(b.distance_km)
-        )[0];
-
-        console.log("Found closest DJ:", closestDJ);
+      try {
+        const result = await searchForNearbyDJs(userLocation.latitude, userLocation.longitude, radiusKm);
         
-        setTimeout(() => {
-          setFoundDJ(closestDJ);
+        if (result.success && result.dj) {
+          setFoundDJ(result.dj);
+          setNearbyDJsList(result.allDJs || []);
           setIsSearching(false);
-          setError(null);
-          // Start tracking this DJ
-          trackDJ(closestDJ.dj_id);
-        }, 1000);
-      } else if (nearbyDJs.length > 0) {
-        setError("Found DJs nearby, but none are currently online. Please try again later.");
-        setIsSearching(false);
-      } else {
-        setError(`No DJs found within ${searchRadius}km of your location. Try expanding your search radius.`);
+        } else {
+          setError(`No DJs found within ${radiusKm}km of your location. Try a larger radius.`);
+          setIsSearching(false);
+        }
+      } catch (err) {
+        setError(`Failed to search for DJs. Please try again.`);
         setIsSearching(false);
       }
-    } else if (!socketSearching && nearbyDJs.length === 0 && isSearching && !error) {
-      // Still waiting for search results
-      console.log("Waiting for search results...");
-    }
-  }, [socketSearching, nearbyDJs, isSearching, searchRadius]);
-
-  // Handle search with custom radius
-  const handleSearchWithRadius = (radiusKm) => {
-    setSearchRadius(radiusKm);
-    if (userLocation && isConnected) {
-      setError(null);
-      setIsSearching(true);
-      setFoundDJ(null);
-      
-      console.log(`Searching with radius: ${radiusKm}km`);
-      searchNearbyDJs(userLocation.latitude, userLocation.longitude, radiusKm);
-      startSearchTimeout();
-    } else if (userLocation) {
-      setError("Connecting to server...");
     } else {
-      getUserLocation();
+      getUserLocationAndFindDJ();
     }
   };
 
@@ -172,10 +206,7 @@ export function EmergencyDJScreen() {
     }
 
     try {
-      // Stop tracking before navigating
-      untrackDJ(dj.dj_id);
-      
-      navigate(`/book/${dj.dj_id}`, { 
+      navigate(`/book/${dj.id}`, { 
         state: { 
           emergency: true, 
           dj: dj,
@@ -194,15 +225,13 @@ export function EmergencyDJScreen() {
     setError(null);
     setIsSearching(true);
     setFoundDJ(null);
+    setNearbyDJsList([]);
+    setIsExpandingRadius(false);
     
-    if (userLocation && isConnected) {
-      console.log("Retrying search...");
-      searchNearbyDJs(userLocation.latitude, userLocation.longitude, searchRadius);
-      startSearchTimeout();
-    } else if (userLocation) {
-      setError("Connecting to server...");
+    if (userLocation) {
+      findClosestDJ(userLocation.latitude, userLocation.longitude, searchRadius);
     } else {
-      getUserLocation();
+      getUserLocationAndFindDJ();
     }
   };
 
@@ -216,15 +245,6 @@ export function EmergencyDJScreen() {
       >
         <ArrowLeft className="w-6 h-6" />
       </button>
-
-      {/* Connection Status */}
-      {!isConnected && !error && (
-        <div className="absolute top-6 right-6 z-50 bg-yellow-500/20 backdrop-blur-md text-yellow-400 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 border border-yellow-500/30">
-          <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse"></div>
-          <WifiOff className="w-3 h-3" /> 
-          <span>Connecting...</span>
-        </div>
-      )}
 
       {isSearching ? (
         // SCREEN 1: SEARCHING RADAR
@@ -242,13 +262,20 @@ export function EmergencyDJScreen() {
           </div>
 
           <h1 className="text-3xl font-bold text-white mb-4 animate-pulse">
-            {locationError ? "Location Error" : "SOS Activated"}
+            {locationError ? "Location Error" : "Finding Closest DJ..."}
           </h1>
           <p className="text-zinc-400 max-w-sm text-lg">
             {locationError 
               ? locationError 
-              : `Scanning for DJs within ${searchRadius}km...`}
+              : isExpandingRadius 
+                ? `No DJs within ${searchRadius/2}km, expanding to ${searchRadius}km...`
+                : `Scanning within ${searchRadius}km radius...`}
           </p>
+          
+          <div className="mt-6 flex items-center gap-2 text-purple-400">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm">Searching for available DJs near you</span>
+          </div>
           
           {locationError && (
             <button
@@ -278,12 +305,6 @@ export function EmergencyDJScreen() {
                 <p className="text-zinc-500 text-xs mb-3 text-center">Try expanding your search radius:</p>
                 <div className="grid grid-cols-3 gap-2">
                   <button
-                    onClick={() => handleSearchWithRadius(5)}
-                    className="bg-zinc-800 hover:bg-zinc-700 text-white text-sm py-2 rounded-lg transition"
-                  >
-                    5 km
-                  </button>
-                  <button
                     onClick={() => handleSearchWithRadius(10)}
                     className="bg-zinc-800 hover:bg-zinc-700 text-white text-sm py-2 rounded-lg transition"
                   >
@@ -294,6 +315,12 @@ export function EmergencyDJScreen() {
                     className="bg-zinc-800 hover:bg-zinc-700 text-white text-sm py-2 rounded-lg transition"
                   >
                     20 km
+                  </button>
+                  <button
+                    onClick={() => handleSearchWithRadius(50)}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-white text-sm py-2 rounded-lg transition"
+                  >
+                    50 km
                   </button>
                 </div>
               </div>
@@ -318,15 +345,15 @@ export function EmergencyDJScreen() {
         // SCREEN 3: DJ FOUND!
         <div className="flex flex-col items-center w-full max-w-md z-10 mt-12 animate-in fade-in zoom-in duration-500">
           <div className="bg-green-500/20 text-green-400 px-6 py-2 rounded-full font-bold mb-8 flex items-center gap-2 border border-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.3)]">
-            <Zap className="w-5 h-5 fill-green-400" /> Match Found!
+            <Zap className="w-5 h-5 fill-green-400" /> Closest DJ Found!
           </div>
 
           <div className="bg-zinc-900 border border-zinc-800 w-full rounded-3xl overflow-hidden shadow-2xl relative">
             <div className="h-32 overflow-hidden bg-gradient-to-r from-purple-600 via-pink-600 to-red-600">
-              {foundDJ.avatar || foundDJ.image ? (
+              {foundDJ.image ? (
                 <img 
-                  src={foundDJ.avatar || foundDJ.image} 
-                  alt={foundDJ.dj_name || foundDJ.name} 
+                  src={foundDJ.image} 
+                  alt={foundDJ.name} 
                   className="w-full h-full object-cover opacity-80" 
                 />
               ) : (
@@ -338,33 +365,42 @@ export function EmergencyDJScreen() {
             
             <div className="p-6 relative">
               {/* DJ Details */}
-              <h2 className="text-2xl font-bold text-white mb-1">{foundDJ.dj_name || foundDJ.name}</h2>
+              <h2 className="text-2xl font-bold text-white mb-1">{foundDJ.name}</h2>
               <div className="flex items-center justify-center gap-4 text-zinc-400 text-sm mb-6">
                 <span className="flex items-center gap-1">
                   <MapPin className="w-4 h-4" /> 
-                  {foundDJ.distance_km ? parseFloat(foundDJ.distance_km).toFixed(1) : "2.4"} km away
+                  {foundDJ.distance_km} km away
                 </span>
                 <span className="flex items-center gap-1">
                   <Star className="w-4 h-4 text-yellow-500 fill-yellow-500"/> 
-                  {parseFloat(foundDJ.average_rating || 4.5).toFixed(1)}
+                  {parseFloat(foundDJ.rating || 4.5).toFixed(1)}
                 </span>
               </div>
 
               {/* DJ Skills/Tags */}
-              {foundDJ.dj_skills && (
+              {foundDJ.skills && (
                 <div className="flex flex-wrap gap-2 justify-center mb-6">
-                  {typeof foundDJ.dj_skills === 'string' 
-                    ? foundDJ.dj_skills.split(',').slice(0, 3).map((skill, i) => (
+                  {typeof foundDJ.skills === 'string' 
+                    ? foundDJ.skills.split(',').slice(0, 3).map((skill, i) => (
                         <span key={i} className="bg-zinc-800 text-zinc-300 text-xs px-3 py-1 rounded-full">
                           {skill.trim()}
                         </span>
                       ))
-                    : foundDJ.dj_skills.slice(0, 3).map((skill, i) => (
+                    : foundDJ.skills.slice(0, 3).map((skill, i) => (
                         <span key={i} className="bg-zinc-800 text-zinc-300 text-xs px-3 py-1 rounded-full">
                           {skill}
                         </span>
                       ))
                   }
+                </div>
+              )}
+
+              {/* Genre Badge */}
+              {foundDJ.genre && (
+                <div className="flex justify-center mb-4">
+                  <span className="bg-purple-500/20 text-purple-400 text-xs px-3 py-1 rounded-full">
+                    {foundDJ.genre}
+                  </span>
                 </div>
               )}
 
@@ -382,7 +418,7 @@ export function EmergencyDJScreen() {
                  <div className="text-right">
                     <p className="text-zinc-500 text-xs uppercase font-bold tracking-wider mb-1">Emergency Rate</p>
                     <p className="text-white font-bold text-xl">
-                      ${foundDJ.price ? Math.round(foundDJ.price * 1.5) : 150}
+                      R{foundDJ.price ? Math.round(foundDJ.price * 1.5) : 225}
                     </p>
                  </div>
               </div>

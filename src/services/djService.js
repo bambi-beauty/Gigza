@@ -1,12 +1,10 @@
 // src/services/djService.js
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://gigza-testing-11.onrender.com/api';
 
-// Helper function to get auth token
 const getAuthToken = () => {
     return localStorage.getItem('token');
 };
 
-// Helper function for API calls
 const apiCall = async (endpoint, options = {}) => {
     const token = getAuthToken();
     
@@ -25,13 +23,19 @@ const apiCall = async (endpoint, options = {}) => {
     };
     
     try {
-        console.log(`📡 API Call: ${options.method || 'GET'} ${endpoint}`);
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-        const data = await response.json();
+        const url = `${API_BASE_URL}${endpoint}`;
+        console.log("📡 Fetching:", url);
+        
+        const response = await fetch(url, config);
         
         if (!response.ok) {
-            throw new Error(data.message || 'API call failed');
+            const errorText = await response.text();
+            console.error("❌ Response error:", response.status, errorText.substring(0, 200));
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
+        
+        const data = await response.json();
+        console.log("📡 Response:", data);
         
         return data;
     } catch (error) {
@@ -40,7 +44,7 @@ const apiCall = async (endpoint, options = {}) => {
     }
 };
 
-// Get all DJs with filters
+// Get all DJs
 export const getAllDJs = async (filters = {}) => {
     const { verified_only = false, available_only = false } = filters;
     const queryParams = new URLSearchParams();
@@ -69,7 +73,7 @@ export const getDJById = async (djId) => {
     return apiCall(`/djs/${djId}`);
 };
 
-// Get nearby DJs - FIXED endpoint to match router
+// ✅ FIXED: Get nearby DJs - this is the important one!
 export const getNearbyDJs = async (latitude, longitude, radius_km = 10) => {
     const queryParams = new URLSearchParams({ 
         latitude: latitude.toString(), 
@@ -77,48 +81,4 @@ export const getNearbyDJs = async (latitude, longitude, radius_km = 10) => {
         radius_km: radius_km.toString() 
     });
     return apiCall(`/djs/nearby?${queryParams}`);
-};
-
-// Get current user's DJ profile (protected)
-export const getMyDJProfile = async () => {
-    return apiCall('/dj/my-profile');
-};
-
-// Create DJ profile (protected)
-export const createDJProfile = async (profileData) => {
-    return apiCall('/dj/profile', {
-        method: 'POST',
-        body: JSON.stringify(profileData),
-    });
-};
-
-// Update DJ profile (protected)
-export const updateDJProfile = async (profileData) => {
-    return apiCall('/dj/profile', {
-        method: 'PUT',
-        body: JSON.stringify(profileData),
-    });
-};
-
-// Update DJ location (protected)
-export const updateDJLocation = async (latitude, longitude) => {
-    return apiCall('/dj/location', {
-        method: 'PATCH',
-        body: JSON.stringify({ latitude, longitude }),
-    });
-};
-
-// Toggle DJ online/offline (protected)
-export const toggleDJOnline = async (is_online) => {
-    return apiCall('/dj/toggle-online', {
-        method: 'PATCH',
-        body: JSON.stringify({ is_online }),
-    });
-};
-
-// Delete DJ profile (protected)
-export const deleteDJProfile = async () => {
-    return apiCall('/dj/profile', {
-        method: 'DELETE',
-    });
 };

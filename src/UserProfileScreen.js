@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { User, CreditCard, Bell, Shield, Edit2, Check, Camera, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { User, MapPin, Phone, Mail, Edit2, Check, Camera, ChevronDown, ChevronUp, LogOut, AlertCircle, Loader2, Headphones, Music, Mic } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useUser } from "./UserContext/ThisUserContext";
 
@@ -10,36 +10,33 @@ export function UserProfileScreen() {
   // UI States
   const [isEditing, setIsEditing] = useState(false);
   const [expandedSection, setExpandedSection] = useState(null);
-  const [showAddCard, setShowAddCard] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [cardToRemove, setCardToRemove] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [isDJ, setIsDJ] = useState(false);
+  const [djStatus, setDjStatus] = useState(null);
+  const [djApplicationStatus, setDjApplicationStatus] = useState(null);
   const fileInputRef = useRef(null);
   
   // Form States
-  const [newCard, setNewCard] = useState({ number: "", expiry: "", cvc: "" });
   const [profileData, setProfileData] = useState({
-    name: "",
+    full_name: "",
     email: "",
-    phone: "",
-    photo: null,
-    prefs: {
-      pushNotifications: true,
-      emailAlerts: false,
-      twoFactorAuth: false,
-      privateProfile: false
-    },
-    paymentMethods: []
+    phone_number: "",
+    city: "",
+    bio: "",
+    profile_picture: null,
+    username: ""
   });
 
-  const BASE_API = 'http://localhost:5000/api';
+  const BASE_API = 'https://gigza-testing-11.onrender.com/api';
 
   // Load profile on mount
   useEffect(() => {
     loadProfile();
+    checkDJStatus();
   }, []);
 
   // Auto-hide success message after 3 seconds
@@ -50,16 +47,45 @@ export function UserProfileScreen() {
     }
   }, [successMessage]);
 
+  const checkDJStatus = async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      // Check if user has a DJ profile
+      const djResponse = await fetch(`${BASE_API}/dj/my-profile`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (djResponse.ok) {
+        const djData = await djResponse.json();
+        setIsDJ(true);
+        setDjStatus(djData.dj_profile);
+      }
+
+      // Check DJ application status
+      const appResponse = await fetch(`${BASE_API}/dj/application-status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (appResponse.ok) {
+        const appData = await appResponse.json();
+        if (appData.application) {
+          setDjApplicationStatus(appData.application.application_status);
+        }
+      }
+    } catch (err) {
+      console.error("Error checking DJ status:", err);
+    }
+  };
+
   const loadProfile = async () => {
     setLoading(true);
     setError(null);
     
     try {
       const token = getToken();
-      console.log("Loading profile with token:", token ? "Token exists" : "No token");
-      
       if (!token) {
-        console.error("No token found, redirecting to login");
         navigate("/login");
         return;
       }
@@ -72,10 +98,7 @@ export function UserProfileScreen() {
         }
       });
 
-      console.log("Profile response status:", response.status);
-
       if (response.status === 401) {
-        console.log("Token expired, logging out");
         logout();
         navigate("/login");
         return;
@@ -86,65 +109,24 @@ export function UserProfileScreen() {
       }
 
       const data = await response.json();
-      console.log("Profile data received:", data);
-
-      // Handle different response structures
+      
       if (data.success && data.data) {
+        const userData = data.data.user || {};
+        const profileData = data.data.profile || {};
+        
         setProfileData({
-          name: data.data.user?.username || data.data.user?.name || "",
-          email: data.data.user?.email || "",
-          phone: data.data.user?.phone || "",
-          photo: data.data.user?.avatar || data.data.user?.profilePicture || null,
-          prefs: {
-            pushNotifications: data.data.user?.push_notifications ?? true,
-            emailAlerts: data.data.user?.email_alerts ?? false,
-            twoFactorAuth: data.data.user?.two_factor_auth ?? false,
-            privateProfile: data.data.user?.private_profile ?? false
-          },
-          paymentMethods: data.data.payment_methods || []
-        });
-      } else {
-        // If API returns different structure, use mock data for testing
-        console.warn("Unexpected API response structure, using fallback data");
-        setProfileData({
-          name: user?.username || "John Doe",
-          email: user?.email || "john@example.com",
-          phone: "+1 234 567 8900",
-          photo: null,
-          prefs: {
-            pushNotifications: true,
-            emailAlerts: false,
-            twoFactorAuth: false,
-            privateProfile: false
-          },
-          paymentMethods: [
-            { id: "1", last4: "4242", expiry: "12/25", type: "Visa" },
-            { id: "2", last4: "5555", expiry: "08/24", type: "Mastercard" }
-          ]
+          full_name: profileData.full_name || userData.username || "",
+          email: userData.email || "",
+          phone_number: profileData.phone_number || "",
+          city: profileData.city || "",
+          bio: profileData.bio || "",
+          profile_picture: profileData.profile_picture || null,
+          username: userData.username || ""
         });
       }
     } catch (err) {
       console.error("Error loading profile:", err);
       setError(err.message);
-      
-      // Load mock data for testing UI
-      console.log("Loading mock data for testing");
-      setProfileData({
-        name: "Test User",
-        email: "test@example.com",
-        phone: "+1 234 567 8900",
-        photo: null,
-        prefs: {
-          pushNotifications: true,
-          emailAlerts: false,
-          twoFactorAuth: false,
-          privateProfile: false
-        },
-        paymentMethods: [
-          { id: "mock1", last4: "4242", expiry: "12/25", type: "Visa" },
-          { id: "mock2", last4: "5555", expiry: "08/24", type: "Mastercard" }
-        ]
-      });
     } finally {
       setLoading(false);
     }
@@ -161,25 +143,30 @@ export function UserProfileScreen() {
         return;
       }
       
+      const updateData = {
+        full_name: profileData.full_name,
+        phone_number: profileData.phone_number,
+        city: profileData.city,
+        bio: profileData.bio
+      };
+
+      if (profileData.profile_picture && typeof profileData.profile_picture === 'string') {
+        updateData.profile_picture = profileData.profile_picture;
+      }
+      
       const response = await fetch(`${BASE_API}/auth/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          username: profileData.name,
-          phone: profileData.phone,
-          push_notifications: profileData.prefs.pushNotifications,
-          email_alerts: profileData.prefs.emailAlerts,
-          two_factor_auth: profileData.prefs.twoFactorAuth,
-          private_profile: profileData.prefs.privateProfile
-        })
+        body: JSON.stringify(updateData)
       });
 
       if (response.ok) {
         setIsEditing(false);
         setSuccessMessage("Profile updated successfully!");
+        await loadProfile();
       } else if (response.status === 401) {
         logout();
         navigate("/login");
@@ -199,204 +186,92 @@ export function UserProfileScreen() {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Validate file
     if (!file.type.startsWith('image/')) {
       setError("Please upload an image file");
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setError("File size should be less than 5MB");
+    if (file.size > 2 * 1024 * 1024) {
+      setError("File size should be less than 2MB");
       return;
     }
 
-    // For testing, just set a local preview
+    setUploadingImage(true);
+    
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setProfileData(prev => ({ ...prev, photo: reader.result }));
-      setSuccessMessage("Profile picture updated!");
+    reader.onloadend = async () => {
+      const base64String = reader.result;
+      setProfileData(prev => ({ ...prev, profile_picture: base64String }));
+      
+      try {
+        const token = getToken();
+        if (token) {
+          const response = await fetch(`${BASE_API}/auth/profile`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ profile_picture: base64String })
+          });
+          
+          if (response.ok) {
+            setSuccessMessage("Profile picture updated successfully!");
+          } else {
+            throw new Error("Failed to save profile picture");
+          }
+        }
+      } catch (err) {
+        console.error("Error saving profile picture:", err);
+        setError("Failed to save profile picture");
+        setProfileData(prev => ({ ...prev, profile_picture: null }));
+      } finally {
+        setUploadingImage(false);
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  const toggleSetting = (settingKey) => {
-    // Optimistically update UI
-    const newValue = !profileData.prefs[settingKey];
-    setProfileData(prev => ({
-      ...prev,
-      prefs: { ...prev.prefs, [settingKey]: newValue }
-    }));
-    
-    // Save to backend (optional, can be done in background)
-    const savePreference = async () => {
-      try {
-        const token = getToken();
-        if (!token) return;
-
-        await fetch(`${BASE_API}/auth/profile`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            push_notifications: settingKey === 'pushNotifications' ? newValue : profileData.prefs.pushNotifications,
-            email_alerts: settingKey === 'emailAlerts' ? newValue : profileData.prefs.emailAlerts,
-            two_factor_auth: settingKey === 'twoFactorAuth' ? newValue : profileData.prefs.twoFactorAuth,
-            private_profile: settingKey === 'privateProfile' ? newValue : profileData.prefs.privateProfile
-          })
-        });
-        setSuccessMessage("Preference updated!");
-      } catch (err) {
-        console.error("Error saving preference:", err);
-        // Revert on error
-        setProfileData(prev => ({
-          ...prev,
-          prefs: { ...prev.prefs, [settingKey]: !newValue }
-        }));
-        setError("Failed to save preference");
-      }
-    };
-    
-    savePreference();
+  const handleLogout = async () => {
+    logout();
+    navigate("/login");
   };
 
-  const handleAddCard = async () => {
-    if (!newCard.number || newCard.number.length < 4) {
-      setError("Please enter a valid card number");
-      return;
-    }
-    
-    try {
-      const token = getToken();
-      if (!token) {
-        navigate("/login");
-        return;
-      }
-
-      const response = await fetch(`${BASE_API}/auth/payment-methods`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          cardNumber: newCard.number,
-          expiry: newCard.expiry,
-          cvc: newCard.cvc
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setProfileData(prev => ({
-          ...prev,
-          paymentMethods: data.paymentMethods || [...prev.paymentMethods, {
-            id: Date.now().toString(),
-            last4: newCard.number.slice(-4),
-            expiry: newCard.expiry,
-            type: "Card"
-          }]
-        }));
-        setNewCard({ number: "", expiry: "", cvc: "" });
-        setShowAddCard(false);
-        setSuccessMessage("Card added successfully!");
-      } else {
-        throw new Error("Failed to add card");
-      }
-    } catch (err) {
-      console.error("Error adding card:", err);
-      setError("Failed to add card. Please try again.");
-    }
-  };
-
-  const confirmRemoveCard = (cardId) => {
-    setCardToRemove(cardId);
-    setShowConfirmDialog(true);
-  };
-
-  const handleRemoveCard = async () => {
-    if (!cardToRemove) return;
-    
-    try {
-      const token = getToken();
-      if (!token) {
-        navigate("/login");
-        return;
-      }
-
-      const response = await fetch(`${BASE_API}/auth/payment-methods/${cardToRemove}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        }
-      });
-
-      if (response.ok) {
-        setProfileData(prev => ({
-          ...prev,
-          paymentMethods: prev.paymentMethods.filter(card => card.id !== cardToRemove)
-        }));
-        setSuccessMessage("Card removed successfully!");
-      } else {
-        throw new Error("Failed to remove card");
-      }
-    } catch (err) {
-      console.error("Error removing card:", err);
-      setError("Failed to remove card. Please try again.");
-    } finally {
-      setShowConfirmDialog(false);
-      setCardToRemove(null);
-    }
-  };
-
-  const ToggleSwitch = ({ isActive, onClick }) => (
-    <button 
-      onClick={onClick} 
-      className={`w-12 h-6 rounded-full relative transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-purple-500 ${isActive ? 'bg-purple-500' : 'bg-zinc-700'}`}
-    >
-      <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform duration-300 ${isActive ? 'translate-x-7' : 'translate-x-1'}`} />
-    </button>
-  );
-
-  // Custom Confirm Dialog Component
-  const ConfirmDialog = () => {
-    if (!showConfirmDialog) return null;
-    
-    return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6">
-          <h3 className="text-white text-lg font-bold mb-2">Confirm Removal</h3>
-          <p className="text-zinc-400 mb-6">Are you sure you want to remove this payment method?</p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => {
-                setShowConfirmDialog(false);
-                setCardToRemove(null);
-              }}
-              className="flex-1 bg-zinc-800 text-white py-2 rounded-xl hover:bg-zinc-700 transition"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleRemoveCard}
-              className="flex-1 bg-red-500 text-white py-2 rounded-xl hover:bg-red-600 transition"
-            >
-              Remove
-            </button>
-          </div>
+  const renderDJStatusBadge = () => {
+    if (isDJ) {
+      return (
+        <div className="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+          <Headphones className="w-3 h-3" />
+          Active DJ
         </div>
-      </div>
-    );
+      );
+    }
+    
+    if (djApplicationStatus === 'pending') {
+      return (
+        <div className="bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+          <Music className="w-3 h-3" />
+          DJ Application Pending
+        </div>
+      );
+    }
+    
+    if (djApplicationStatus === 'rejected') {
+      return (
+        <div className="bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+          <Mic className="w-3 h-3" />
+          Application Rejected
+        </div>
+      );
+    }
+    
+    return null;
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p>Loading profile...</p>
-        </div>
+        <Loader2 className="w-12 h-12 text-purple-500 animate-spin" />
       </div>
     );
   }
@@ -405,21 +280,17 @@ export function UserProfileScreen() {
     <div className="min-h-screen bg-black pb-24">
       {/* Success Message */}
       {successMessage && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-500/90 text-white px-4 py-2 rounded-lg shadow-lg z-50 text-sm sm:text-base whitespace-nowrap">
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-500/90 text-white px-4 py-2 rounded-lg shadow-lg z-50 text-sm">
           {successMessage}
         </div>
       )}
       
       {/* Error Banner */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-3 mb-4 mx-4 sm:mx-6 rounded-lg">
-          <p className="text-sm">{error}</p>
-          <button 
-            onClick={() => setError(null)} 
-            className="text-xs underline mt-1"
-          >
-            Dismiss
-          </button>
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-4 py-2 rounded-lg shadow-lg z-50 text-sm flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="ml-2 text-white/70 hover:text-white">×</button>
         </div>
       )}
       
@@ -428,8 +299,12 @@ export function UserProfileScreen() {
         <div className="absolute -bottom-12 left-6 flex items-end gap-4">
           <div className="relative">
             <div className="w-24 h-24 bg-zinc-800 border-4 border-black rounded-full flex items-center justify-center overflow-hidden">
-              {profileData.photo ? (
-                <img src={profileData.photo} alt="Profile" className="w-full h-full object-cover" />
+              {profileData.profile_picture ? (
+                <img 
+                  src={profileData.profile_picture} 
+                  alt="Profile" 
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <User className="w-12 h-12 text-zinc-500" />
               )}
@@ -440,243 +315,254 @@ export function UserProfileScreen() {
               ref={fileInputRef} 
               onChange={handleImageUpload} 
               className="hidden" 
+              disabled={uploadingImage}
             />
             <button 
               onClick={() => fileInputRef.current?.click()} 
-              className="absolute bottom-0 right-0 bg-purple-500 p-1.5 rounded-full border-2 border-black text-white hover:bg-purple-600 transition"
+              disabled={uploadingImage}
+              className="absolute bottom-0 right-0 bg-purple-500 p-1.5 rounded-full border-2 border-black text-white hover:bg-purple-600 transition disabled:opacity-50"
             >
-              <Camera className="w-4 h-4" />
+              {uploadingImage ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Camera className="w-4 h-4" />
+              )}
             </button>
+          </div>
+          <div className="mb-2">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-white">{profileData.full_name || profileData.username}</h1>
+              {renderDJStatusBadge()}
+            </div>
+            <p className="text-zinc-400 text-sm">@{profileData.username}</p>
           </div>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 mt-16 space-y-4 sm:space-y-8">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 mt-16 space-y-4">
         
         {/* Personal Information Section */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 sm:p-6">
           <div className="flex justify-between items-center mb-4 sm:mb-6">
-            <h2 className="text-lg sm:text-xl font-bold text-white">Personal Info</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-white">Personal Information</h2>
             {isEditing ? (
               <button 
                 onClick={handleSave} 
                 disabled={saving} 
-                className="flex items-center gap-1 text-green-400 bg-green-500/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold hover:bg-green-500/20 transition disabled:opacity-50"
+                className="flex items-center gap-1 text-green-400 bg-green-500/10 px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-green-500/20 transition disabled:opacity-50"
               >
-                {saving ? <div className="animate-spin rounded-full w-3 h-3 sm:w-4 sm:h-4 border-b-2 border-green-400"></div> : <Check className="w-3 h-3 sm:w-4 sm:h-4" />} 
+                {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} 
                 {saving ? "Saving..." : "Save"}
               </button>
             ) : (
               <button 
                 onClick={() => setIsEditing(true)} 
-                className="flex items-center gap-1 text-purple-400 bg-purple-500/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold hover:bg-purple-500/20 transition"
+                className="flex items-center gap-1 text-purple-400 bg-purple-500/10 px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-purple-500/20 transition"
               >
-                <Edit2 className="w-3 h-3 sm:w-4 sm:h-4" /> Edit
+                <Edit2 className="w-3 h-3" /> Edit
               </button>
             )}
           </div>
 
-          <div className="space-y-3 sm:space-y-4">
+          <div className="space-y-4">
             <div>
-              <label className="text-zinc-500 text-xs sm:text-sm mb-1 block">Full Name</label>
+              <label className="text-zinc-500 text-sm mb-1 block">Full Name</label>
               {isEditing ? (
                 <input 
                   type="text" 
-                  value={profileData.name} 
-                  onChange={(e) => setProfileData({...profileData, name: e.target.value})} 
-                  className="w-full bg-black border border-purple-500 rounded-xl px-3 sm:px-4 py-2 text-white text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-purple-500" 
+                  value={profileData.full_name} 
+                  onChange={(e) => setProfileData({...profileData, full_name: e.target.value})} 
+                  className="w-full bg-black border border-purple-500 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500" 
                 />
               ) : (
-                <p className="text-white font-medium text-base sm:text-lg">{profileData.name || "Not set"}</p>
+                <p className="text-white font-medium">{profileData.full_name || "Not set"}</p>
               )}
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <div>
-                <label className="text-zinc-500 text-xs sm:text-sm mb-1 block">Email Address</label>
-                <p className="text-white text-sm sm:text-base break-all">{profileData.email}</p>
-              </div>
-              <div>
-                <label className="text-zinc-500 text-xs sm:text-sm mb-1 block">Phone Number</label>
-                {isEditing ? (
-                  <input 
-                    type="tel" 
-                    value={profileData.phone} 
-                    onChange={(e) => setProfileData({...profileData, phone: e.target.value})} 
-                    className="w-full bg-black border border-purple-500 rounded-xl px-3 sm:px-4 py-2 text-white text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-purple-500" 
-                  />
-                ) : (
-                  <p className="text-white text-sm sm:text-base">{profileData.phone || "Not set"}</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Interactive Settings Menu */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl sm:rounded-3xl overflow-hidden">
-          
-          {/* Payment Methods Setting */}
-          <div>
-            <button 
-              onClick={() => setExpandedSection(expandedSection === 'payment' ? null : 'payment')} 
-              className="w-full flex items-center justify-between p-4 border-b border-zinc-800 hover:bg-zinc-800 transition active:bg-zinc-800"
-            >
-              <div className="flex items-center gap-3">
-                <div className="bg-zinc-800 p-2 rounded-lg"><CreditCard className="w-5 h-5 text-zinc-300" /></div>
-                <span className="text-white font-medium">Payment Methods</span>
-              </div>
-              {expandedSection === 'payment' ? <ChevronUp className="w-5 h-5 text-zinc-500" /> : <ChevronDown className="w-5 h-5 text-zinc-500" />}
-            </button>
-            {expandedSection === 'payment' && (
-              <div className="bg-black/50 p-4 border-b border-zinc-800 space-y-4">
-                {profileData.paymentMethods.length === 0 ? (
-                  <p className="text-zinc-500 text-sm text-center py-2">No payment methods saved.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {profileData.paymentMethods.map(card => (
-                      <div key={card.id} className="flex justify-between items-center bg-zinc-900 border border-zinc-800 p-3 rounded-xl">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="bg-zinc-800 p-2 rounded text-zinc-300 font-bold text-xs shrink-0">{card.type || "Card"}</div>
-                          <div className="min-w-0">
-                            <p className="text-white text-sm font-medium break-all">•••• •••• •••• {card.last4}</p>
-                            <p className="text-zinc-500 text-xs">Expires {card.expiry}</p>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => confirmRemoveCard(card.id)} 
-                          className="p-2 text-zinc-500 hover:text-red-500 transition shrink-0"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {showAddCard ? (
-                  <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl mt-4 space-y-3">
-                    <input 
-                      type="text" 
-                      placeholder="Card Number" 
-                      value={newCard.number}
-                      onChange={(e) => setNewCard({...newCard, number: e.target.value})}
-                      className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 text-sm"
-                    />
-                    <div className="flex gap-3">
-                      <input 
-                        type="text" 
-                        placeholder="MM/YY" 
-                        value={newCard.expiry}
-                        onChange={(e) => setNewCard({...newCard, expiry: e.target.value})}
-                        className="w-1/2 bg-black border border-zinc-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 text-sm"
-                      />
-                      <input 
-                        type="password" 
-                        placeholder="CVC" 
-                        value={newCard.cvc}
-                        onChange={(e) => setNewCard({...newCard, cvc: e.target.value})}
-                        className="w-1/2 bg-black border border-zinc-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500 text-sm"
-                      />
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                      <button 
-                        onClick={() => setShowAddCard(false)} 
-                        className="flex-1 bg-zinc-800 text-white text-sm py-2 rounded-lg hover:bg-zinc-700 transition"
-                      >
-                        Cancel
-                      </button>
-                      <button 
-                        onClick={handleAddCard} 
-                        className="flex-1 bg-purple-500 text-white text-sm py-2 rounded-lg hover:bg-purple-600 transition"
-                      >
-                        Save Card
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button 
-                    onClick={() => setShowAddCard(true)} 
-                    className="w-full flex items-center justify-center gap-2 mt-4 text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 py-3 rounded-xl text-sm font-semibold transition"
-                  >
-                    <Plus className="w-4 h-4" /> Add Payment Method
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Notifications Setting */}
-          <div>
-            <button 
-              onClick={() => setExpandedSection(expandedSection === 'notifs' ? null : 'notifs')} 
-              className="w-full flex items-center justify-between p-4 border-b border-zinc-800 hover:bg-zinc-800 transition active:bg-zinc-800"
-            >
-              <div className="flex items-center gap-3">
-                <div className="bg-zinc-800 p-2 rounded-lg"><Bell className="w-5 h-5 text-zinc-300" /></div>
-                <span className="text-white font-medium">Notifications</span>
-              </div>
-              {expandedSection === 'notifs' ? <ChevronUp className="w-5 h-5 text-zinc-500" /> : <ChevronDown className="w-5 h-5 text-zinc-500" />}
-            </button>
-            {expandedSection === 'notifs' && (
-              <div className="bg-black/50 p-4 border-b border-zinc-800 space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-300 text-sm">Push Notifications</span>
-                  <ToggleSwitch isActive={profileData.prefs.pushNotifications} onClick={() => toggleSetting('pushNotifications')} />
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-300 text-sm">Email Alerts</span>
-                  <ToggleSwitch isActive={profileData.prefs.emailAlerts} onClick={() => toggleSetting('emailAlerts')} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Privacy & Security Setting */}
-          <div>
-            <button 
-              onClick={() => setExpandedSection(expandedSection === 'privacy' ? null : 'privacy')} 
-              className="w-full flex items-center justify-between p-4 hover:bg-zinc-800 transition active:bg-zinc-800"
-            >
-              <div className="flex items-center gap-3">
-                <div className="bg-zinc-800 p-2 rounded-lg"><Shield className="w-5 h-5 text-zinc-300" /></div>
-                <span className="text-white font-medium">Privacy & Security</span>
-              </div>
-              {expandedSection === 'privacy' ? <ChevronUp className="w-5 h-5 text-zinc-500" /> : <ChevronDown className="w-5 h-5 text-zinc-500" />}
-            </button>
-            {expandedSection === 'privacy' && (
-              <div className="bg-black/50 p-4 border-t border-zinc-800 space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-300 text-sm">Two-Factor Authentication</span>
-                  <ToggleSwitch isActive={profileData.prefs.twoFactorAuth} onClick={() => toggleSetting('twoFactorAuth')} />
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-300 text-sm">Private Account</span>
-                  <ToggleSwitch isActive={profileData.prefs.privateProfile} onClick={() => toggleSetting('privateProfile')} />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* DJ Mode Toggle */}
-        <div className="my-4 sm:my-6">
-          <Link 
-            to="/requests" 
-            className="w-full flex items-center justify-between bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 p-4 rounded-2xl hover:bg-purple-500/30 transition group"
-          >
             <div>
-              <h3 className="text-purple-400 font-bold text-base sm:text-lg">Switch to DJ Dashboard</h3>
-              <p className="text-zinc-400 text-xs sm:text-sm">Manage your gigs and availability</p>
+              <label className="text-zinc-500 text-sm mb-1 block flex items-center gap-1">
+                <Mail className="w-3 h-3" /> Email Address
+              </label>
+              <p className="text-white">{profileData.email}</p>
             </div>
-            <div className="bg-purple-500 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-semibold text-sm sm:text-base group-hover:scale-105 transition">Go</div>
-          </Link>
+
+            <div>
+              <label className="text-zinc-500 text-sm mb-1 block flex items-center gap-1">
+                <Phone className="w-3 h-3" /> Phone Number
+              </label>
+              {isEditing ? (
+                <input 
+                  type="tel" 
+                  value={profileData.phone_number} 
+                  onChange={(e) => setProfileData({...profileData, phone_number: e.target.value})} 
+                  placeholder="+27 XX XXX XXXX"
+                  className="w-full bg-black border border-purple-500 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500" 
+                />
+              ) : (
+                <p className="text-white">{profileData.phone_number || "Not set"}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-zinc-500 text-sm mb-1 block flex items-center gap-1">
+                <MapPin className="w-3 h-3" /> City
+              </label>
+              {isEditing ? (
+                <select
+                  value={profileData.city}
+                  onChange={(e) => setProfileData({...profileData, city: e.target.value})}
+                  className="w-full bg-black border border-purple-500 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">Select your city</option>
+                  <option value="Cape Town">Cape Town</option>
+                  <option value="Johannesburg">Johannesburg</option>
+                  <option value="Pretoria">Pretoria</option>
+                  <option value="Durban">Durban</option>
+                  <option value="Port Elizabeth">Port Elizabeth</option>
+                  <option value="Bloemfontein">Bloemfontein</option>
+                  <option value="Other">Other</option>
+                </select>
+              ) : (
+                <p className="text-white">{profileData.city || "Not set"}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-zinc-500 text-sm mb-1 block">Bio</label>
+              {isEditing ? (
+                <textarea 
+                  value={profileData.bio} 
+                  onChange={(e) => setProfileData({...profileData, bio: e.target.value})} 
+                  placeholder="Tell us about yourself..."
+                  rows={3}
+                  className="w-full bg-black border border-purple-500 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                />
+              ) : (
+                <p className="text-zinc-300">{profileData.bio || "No bio added yet"}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* DJ Section - Conditional based on status */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="p-4 border-b border-zinc-800">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="bg-purple-500/20 p-2 rounded-lg">
+                <Headphones className="w-5 h-5 text-purple-400" />
+              </div>
+              <h3 className="text-white font-bold text-lg">DJ Status</h3>
+            </div>
+            
+            {isDJ ? (
+              /* User is already a DJ - Show DJ Dashboard link */
+              <div className="space-y-3">
+                <p className="text-zinc-400 text-sm">
+                  You are an approved DJ on Gigza! You can manage your DJ profile, view booking requests, and track your earnings.
+                </p>
+                <Link 
+                  to="/dashboard"
+                  className="w-full flex items-center justify-between bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 p-3 rounded-xl hover:bg-purple-500/30 transition group"
+                >
+                  <div>
+                    <p className="text-purple-400 font-semibold">Go to DJ Dashboard</p>
+                    <p className="text-zinc-500 text-xs">Manage your gigs and availability</p>
+                  </div>
+                  <div className="bg-purple-500 text-white px-3 py-1 rounded-lg text-sm group-hover:scale-105 transition">Go</div>
+                </Link>
+              </div>
+            ) : djApplicationStatus === 'pending' ? (
+              /* Application pending */
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 text-center">
+                <Music className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
+                <p className="text-yellow-400 font-semibold">Application Under Review</p>
+                <p className="text-zinc-400 text-sm mt-1">
+                  Your DJ application is being reviewed by our team. You'll be notified once a decision is made.
+                </p>
+                <p className="text-zinc-500 text-xs mt-3">Status: Pending Review</p>
+              </div>
+            ) : djApplicationStatus === 'rejected' ? (
+              /* Application rejected */
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
+                <Mic className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                <p className="text-red-400 font-semibold">Application Not Approved</p>
+                <p className="text-zinc-400 text-sm mt-1">
+                  Your DJ application was not approved at this time. You can reapply after 30 days.
+                </p>
+                <button 
+                  onClick={() => navigate("/apply-dj")}
+                  className="mt-3 text-purple-400 text-sm hover:text-purple-300 transition"
+                >
+                  Reapply →
+                </button>
+              </div>
+            ) : (
+              /* No application - Show Apply button */
+              <div className="space-y-3">
+                <p className="text-zinc-400 text-sm">
+                  Want to become a DJ on Gigza? Apply now to start your DJ career, get booked for events, and earn money.
+                </p>
+                <Link 
+                  to="/apply-dj"
+                  className="w-full flex items-center justify-between bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 p-3 rounded-xl hover:bg-purple-500/30 transition group"
+                >
+                  <div>
+                    <p className="text-purple-400 font-semibold">Apply to Become a DJ</p>
+                    <p className="text-zinc-500 text-xs">Fill out the application form</p>
+                  </div>
+                  <div className="bg-purple-500 text-white px-3 py-1 rounded-lg text-sm group-hover:scale-105 transition">Apply</div>
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Account Settings Section */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <button 
+            onClick={() => setExpandedSection(expandedSection === 'account' ? null : 'account')} 
+            className="w-full flex items-center justify-between p-4 hover:bg-zinc-800 transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="bg-zinc-800 p-2 rounded-lg"><User className="w-5 h-5 text-zinc-300" /></div>
+              <span className="text-white font-medium">Account Settings</span>
+            </div>
+            {expandedSection === 'account' ? <ChevronUp className="w-5 h-5 text-zinc-500" /> : <ChevronDown className="w-5 h-5 text-zinc-500" />}
+          </button>
+          
+          {expandedSection === 'account' && (
+            <div className="bg-black/50 p-4 border-t border-zinc-800 space-y-3">
+              <Link 
+                to="/change-password"
+                className="block w-full text-left text-zinc-300 hover:text-white py-2 px-3 rounded-lg hover:bg-zinc-800 transition"
+              >
+                Change Password
+              </Link>
+              <Link 
+                to="/bookings"
+                className="block w-full text-left text-zinc-300 hover:text-white py-2 px-3 rounded-lg hover:bg-zinc-800 transition"
+              >
+                My Bookings
+              </Link>
+              <Link 
+                to="/emergency"
+                className="block w-full text-left text-red-400 hover:text-red-300 py-2 px-3 rounded-lg hover:bg-red-500/10 transition"
+              >
+                Emergency SOS
+              </Link>
+              <hr className="border-zinc-800 my-2" />
+              <button 
+                onClick={handleLogout}
+                className="block w-full text-left text-red-400 hover:text-red-300 py-2 px-3 rounded-lg hover:bg-red-500/10 transition flex items-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                Logout
+              </button>
+            </div>
+          )}
         </div>
 
       </div>
-      
-      {/* Confirm Dialog */}
-      <ConfirmDialog />
     </div>
   );
 }

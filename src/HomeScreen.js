@@ -19,6 +19,9 @@ export function HomeScreen() {
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
   const [showOnlyVerified, setShowOnlyVerified] = useState(false);
   const [genres, setGenres] = useState(["All", "Electronic", "Hip Hop", "House", "Techno", "R&B", "Pop", "Rock", "Latin", "Jazz"]);
+  
+  // Get API URL from context or env
+  const BASE_API = 'https://gigza-testing-11.onrender.com/';
 
   // Helper function to safely parse numbers
   const safeNumber = (value, defaultValue = 0) => {
@@ -101,7 +104,7 @@ export function HomeScreen() {
     try {
       const token = getToken();
       if (token) {
-        await fetch('http://localhost:5000/api/auth/logout', {
+        await fetch(`${BASE_API}/api/auth/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
