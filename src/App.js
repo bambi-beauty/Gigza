@@ -4,11 +4,11 @@ import { UserProvider } from "./UserContext/ThisUserContext";
 import { SocketProvider } from "./UserContext/SocketContext";
 import Splash from "./components/Splash";
 import Login from "./components/Login";
-import Verification from "./components/Verification";
 import { ProfileSetupScreen } from "./ProfileSetupScreen";
 import { TopNav } from "./TopNav";
 import { HomeScreen } from "./HomeScreen";
 import { BookingManagementScreen } from "./BookingManagementScreen";
+import { BookingFormScreen } from "./BookingFormScreen"; // ✅ Add this
 import { DJProfileScreen } from "./DJProfileScreen";
 import { EarningsDashboardScreen } from "./EarningsDashboardScreen";
 import { EmergencyDJScreen } from "./EmergencyDJScreen";
@@ -19,7 +19,7 @@ import { ScheduledBookingScreen } from "./ScheduledBookingScreen";
 import { UserProfileScreen } from "./UserProfileScreen";
 import { DJRequestsScreen } from "./DJRequestsScreen";
 import { ReviewScreen } from "./ReviewScreen";
-import { DJApplicationScreen } from "./DJApplicationScreen"; // ✅ ADD THIS IMPORT
+import { DJApplicationScreen } from "./DJApplicationScreen";
 
 function ProtectedRoute({ children }) {
   const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
@@ -40,14 +40,12 @@ function AuthenticatedLayout({ children }) {
 
 function AppContent() {
   const [isLoading, setIsLoading] = useState(true);
-  const [showProfileSetup, setShowProfileSetup] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 1500);
-
     return () => clearTimeout(timer);
   }, []);
 
@@ -55,7 +53,6 @@ function AppContent() {
   useEffect(() => {
     const needsProfileSetup = localStorage.getItem("needsProfileSetup") === "true";
     if (needsProfileSetup && !window.location.pathname.includes("/profile-setup")) {
-      setShowProfileSetup(true);
       navigate("/profile-setup");
     }
   }, []);
@@ -70,14 +67,13 @@ function AppContent() {
     navigate("/");
   };
 
-  // Show splash screen only briefly
   if (isLoading) {
     return <Splash />;
   }
 
   return (
     <Routes>
-      {/* Public Auth Routes - No TopNav */}
+      {/* ========== PUBLIC ROUTES (No Auth) ========== */}
       <Route 
         path="/login" 
         element={<Login goToProfileSetup={goToProfileSetup} goToHome={goToHome} />} 
@@ -86,10 +82,10 @@ function AppContent() {
         path="/profile-setup" 
         element={<ProfileSetupScreen onComplete={goToHome} onSkip={goToHome} />} 
       />
-      {/* Verification route - commented out as we're using auto-verify */}
-      {/* <Route path="/verify" element={<Verification goToSuccess={goToHome} />} /> */}
 
-      {/* Protected Routes */}
+      {/* ========== PROTECTED ROUTES (Auth Required) ========== */}
+      
+      {/* Home */}
       <Route
         path="/"
         element={
@@ -100,6 +96,8 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+      
+      {/* Bookings */}
       <Route
         path="/bookings"
         element={
@@ -110,6 +108,20 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+      
+      {/* Booking Form - Create new booking */}
+      <Route
+        path="/book/:djId"
+        element={
+          <ProtectedRoute>
+            <AuthenticatedLayout>
+              <BookingFormScreen />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        }
+      />
+      
+      {/* DJ Profile */}
       <Route
         path="/dj/:id"
         element={
@@ -120,6 +132,8 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+      
+      {/* DJ Dashboard (for approved DJs) */}
       <Route
         path="/dashboard"
         element={
@@ -130,6 +144,8 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+      
+      {/* Emergency SOS */}
       <Route
         path="/emergency"
         element={
@@ -140,6 +156,8 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+      
+      {/* Notifications */}
       <Route
         path="/notifications"
         element={
@@ -150,6 +168,8 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+      
+      {/* Checkout / Payment */}
       <Route
         path="/checkout/:djId"
         element={
@@ -160,6 +180,8 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+      
+      {/* Leave Review */}
       <Route
         path="/review/:bookingId"
         element={
@@ -170,8 +192,10 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+      
+      {/* Scheduled Booking (alternative booking flow) */}
       <Route
-        path="/book/:id"
+        path="/schedule/:id"
         element={
           <ProtectedRoute>
             <AuthenticatedLayout>
@@ -180,6 +204,8 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+      
+      {/* User Profile */}
       <Route
         path="/profile"
         element={
@@ -190,6 +216,8 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+      
+      {/* DJ Requests (for DJs to see booking requests) */}
       <Route
         path="/requests"
         element={
@@ -201,7 +229,7 @@ function AppContent() {
         }
       />
       
-      {/* ✅ ADDED: DJ Application Route */}
+      {/* Apply to Become a DJ */}
       <Route
         path="/apply-dj"
         element={
@@ -213,13 +241,13 @@ function AppContent() {
         }
       />
       
-      {/* Catch all route - redirect to login if not authenticated, else home */}
+      {/* Catch all - redirect to home */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
 
-// Main App component wrapped with UserProvider, SocketProvider, and BrowserRouter
+// Main App component
 function App() {
   return (
     <UserProvider>

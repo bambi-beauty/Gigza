@@ -1,5 +1,5 @@
 // src/services/bookingService.js
-const API_BASE_URL = 'https://gigza-testing-11.onrender.com/api';
+const API_BASE_URL ='https://gigza-testing-11.onrender.com/api';
 
 const getAuthToken = () => {
     return localStorage.getItem('token');
@@ -40,6 +40,8 @@ const apiCall = async (endpoint, options = {}) => {
     }
 };
 
+// ========== BOOKING SERVICES ==========
+
 // Get user's bookings
 export const getUserBookings = async () => {
     return apiCall('/bookings');
@@ -50,10 +52,26 @@ export const getBookingById = async (bookingId) => {
     return apiCall(`/bookings/${bookingId}`);
 };
 
-// Cancel a booking
+// Create a new booking
+export const createBooking = async (bookingData) => {
+    return apiCall('/bookings', {
+        method: 'POST',
+        body: JSON.stringify(bookingData),
+    });
+};
+
+// Cancel a booking (using DELETE)
 export const cancelBooking = async (bookingId) => {
     return apiCall(`/bookings/${bookingId}`, {
         method: 'DELETE',
+    });
+};
+
+// Update booking status (for DJs/admins)
+export const updateBookingStatus = async (bookingId, status) => {
+    return apiCall(`/bookings/${bookingId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ booking_status: status }),
     });
 };
 
@@ -71,4 +89,10 @@ export const checkDJAvailability = async (djId, eventDate, eventTime) => {
         method: 'POST',
         body: JSON.stringify({ event_date: eventDate, event_time: eventTime }),
     });
+};
+
+// Get available DJs for a specific time
+export const getAvailableDJsForTime = async (eventDate, eventTime) => {
+    const queryParams = new URLSearchParams({ event_date: eventDate, event_time: eventTime });
+    return apiCall(`/djs/available?${queryParams}`);
 };
