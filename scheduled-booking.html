@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scheduled Booking - GIGZA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="common.css">
+
+  <style>
+    .page {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+    }
+
+    .hero-img {
+      width: 100%;
+      height: 280px;
+      object-fit: cover;
+      border-radius: 14px;
+      display: block;
+      margin-bottom: 2rem;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    .badge {
+      display: inline-block;
+      background: #ede8fc;
+      color: #4a38b0;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 16px;
+      border-radius: 20px;
+      margin-bottom: 1rem;
+      letter-spacing: 0.04em;
+    }
+    .hero h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.02em;
+    }
+    .hero p {
+      font-size: 1rem;
+      color: #5a5a7a;
+      max-width: 500px;
+      margin: 0 auto;
+      line-height: 1.65;
+    }
+
+    .sec-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: #5a5a7a;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .section { margin: 2.5rem 0; }
+
+    .steps-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      background: white;
+      border: 1px solid #e8e6f0;
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+    }
+    .step-num {
+      min-width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #ede8fc;
+      color: #5c3bb5;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step-text strong {
+      font-weight: 600;
+      font-size: 14px;
+      color: #1a1a2e;
+      display: block;
+      margin-bottom: 3px;
+    }
+    .step-text span {
+      font-size: 13px;
+      color: #5a5a7a;
+      line-height: 1.5;
+    }
+
+    .photo-strip {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 8px;
+      margin: 2.5rem 0;
+      border-radius: 14px;
+      overflow: hidden;
+      height: 190px;
+    }
+    .photo-strip img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 1.5rem 0;
+    }
+    .info-card {
+      background: white;
+      border: 1px solid #e8e6f0;
+      border-radius: 14px;
+      padding: 1.25rem;
+    }
+    .info-card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 5px;
+    }
+    .info-card p {
+      font-size: 13px;
+      color: #5a5a7a;
+      line-height: 1.55;
+    }
+
+    .feature-box {
+      background: #faf9ff;
+      border-radius: 14px;
+      border: 1px solid #e8e6f0;
+      padding: 1.4rem 1.6rem;
+      margin: 1.5rem 0;
+    }
+    .feature-box h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 0.5rem;
+    }
+    .feature-box p {
+      font-size: 14px;
+      color: #5a5a7a;
+      line-height: 1.65;
+    }
+    @media (max-width: 560px) {
+      .hero h1 { font-size: 1.7rem; }
+      .info-grid { grid-template-columns: 1fr; }
+      .photo-strip { grid-template-columns: 1fr 1fr; height: 140px; }
+      .photo-strip img:last-child { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="logo">GIG<span>ZA</span></div>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/#features">Features</a>
+      <a href="/#how-it-works">How it works</a>
+    </div>
+  </nav>
+
+  <div class="page">
+
+    <img class="hero-img" src="https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=1200&q=80" alt="Wedding reception with DJ" />
+
+    <div class="hero">
+      <div class="badge">📅 Plan ahead</div>
+      <h1>Scheduled Booking</h1>
+      <p>Find the perfect creative for your wedding, party, or corporate event. Browse portfolios, check reviews, and book with confidence.</p>
+    </div>
+
+    <div class="section">
+      <div class="sec-label">Perfect for</div>
+      <div class="info-grid">
+        <div class="info-card"><h3>Weddings</h3><p>Find the perfect DJ for your special day</p></div>
+        <div class="info-card"><h3>Birthday parties</h3><p>Celebrate with music that matches your vibe</p></div>
+        <div class="info-card"><h3>Corporate events</h3><p>Professional entertainment for company functions</p></div>
+        <div class="info-card"><h3>Community gatherings</h3><p>Festivals, markets, and local celebrations</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-label">How it works</div>
+      <div class="steps-grid">
+        <div class="step"><div class="step-num">1</div><div class="step-text"><strong>Browse creatives</strong><span>Search by location, genre, or price range</span></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-text"><strong>View portfolios</strong><span>Check photos, videos, and audio mixes</span></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-text"><strong>Read reviews</strong><span>See what past clients say about them</span></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-text"><strong>Send a booking request</strong><span>Choose your date and send a request</span></div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-text"><strong>Secure payment</strong><span>Pay a deposit to confirm your booking</span></div></div>
+      </div>
+    </div>
+
+    <div class="photo-strip">
+      <img src="https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=600&q=80" alt="Wedding dance floor" />
+      <img src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400&q=80" alt="DJ at wedding" />
+      <img src="https://images.unsplash.com/photo-1505236858219-8359eb29e329?w=400&q=80" alt="Party crowd" />
+    </div>
+
+    <div class="section">
+      <div class="sec-label">For emerging creatives</div>
+      <div class="feature-box">
+        <p>Scheduled Booking is your starting point on GIGZA. Build your reputation, collect ratings, and grow your profile. Once you've proven your reliability, you'll qualify for Emergency Gig Mode and unlock more opportunities.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-label">Why organizers love it</div>
+      <div class="info-grid">
+        <div class="info-card"><h3>🎧 See before you book</h3><p>Portfolios and reviews help you choose the right creative</p></div>
+        <div class="info-card"><h3>💰 Compare prices</h3><p>Find talent that fits your budget</p></div>
+        <div class="info-card"><h3>🔒 Secure deposits</h3><p>Your payment is protected until the event</p></div>
+        <div class="info-card"><h3>💬 Direct communication</h3><p>Message creatives before booking</p></div>
+      </div>
+    </div>
+
+    <div class="feature-box">
+      <h3>🎵 For creatives</h3>
+      <p>Scheduled Booking is where you build your career on GIGZA. Complete your profile, upload your best work, and deliver great service to earn 5-star ratings. The better your reputation, the more bookings you'll get.</p>
+    </div>
+
+  </div>
+
+ 
+  <footer>
+    <div class="footer-content">
+      <div class="footer-logo">
+        <div class="logo">GIG<span>ZA</span></div>
+        <p>Connecting Talent to Opportunity. Empowering South Africa's creative workforce.</p>
+      </div>
+      <div class="footer-links">
+        <div>
+          <h4>Platform</h4>
+          <a href="/emergency-mode.html">Emergency Mode</a>
+          <a href="/scheduled-booking.html">Scheduled Booking</a>
+          <a href="/become-a-creative.html">Become a Creative</a>
+        </div>
+        <div>
+          <h4>Support</h4>
+          <a href="/help.html">Help Center</a>
+          <a href="/dispute.html">Dispute Resolution</a>
+          <a href="/safety.html">Safety Tips</a>
+        </div>
+        <div>
+          <h4>Legal</h4>
+          <a href="/terms.html">Terms of Service</a>
+          <a href="/privacy.html">Privacy Policy</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 GIGZA — Your Gig Starts Here. All rights reserved.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

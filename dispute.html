@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dispute Resolution - GIGZA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="common.css">
+
+  <style>
+    .dispute-container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 4rem 2rem 2rem;
+    }
+    .dispute-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .dispute-header h1 {
+      color: #110911;
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .dispute-header p {
+      color: #5a5a7a;
+      font-size: 1.1rem;
+    }
+
+    .hero-banner {
+      width: 100%;
+      height: 380px;
+      object-fit: cover;
+      object-position: top 20%;
+      border-radius: 24px;
+      margin: 0 0 2rem 0;
+      display: block;
+    }
+
+    .section {
+      margin-bottom: 3rem;
+    }
+    .section h2 {
+      color: #1a1a2e;
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid #FF00FF;
+      display: inline-block;
+    }
+
+    .bullet-list {
+      list-style: none;
+      padding: 0;
+    }
+    .bullet-list li {
+      padding: 0.5rem 0;
+      padding-left: 1.5rem;
+      position: relative;
+      color: #5a5a7a;
+      line-height: 1.5;
+    }
+    .bullet-list li::before {
+      content: "•";
+      color: #FF00FF;
+      font-weight: bold;
+      position: absolute;
+      left: 0;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+    .step-card {
+      text-align: center;
+      padding: 1.5rem;
+      background: #faf9ff;
+      border-radius: 16px;
+    }
+    .step-number {
+      width: 40px;
+      height: 40px;
+      background: #FF00FF;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem auto;
+      font-weight: 700;
+      font-size: 1.2rem;
+    }
+    .step-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 0.5rem;
+    }
+    .step-card p {
+      font-size: 0.85rem;
+      color: #5a5a7a;
+      line-height: 1.5;
+    }
+
+    .outcome-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      margin: 1.5rem 0;
+    }
+    .outcome-card {
+      background: #faf9ff;
+      border-radius: 16px;
+      padding: 1.5rem;
+      text-align: center;
+    }
+    .outcome-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 0.5rem;
+    }
+    .outcome-card p {
+      font-size: 0.85rem;
+      color: #5a5a7a;
+      line-height: 1.5;
+    }
+    .outcome-card i {
+      font-size: 2rem;
+      color: #FF00FF;
+      margin-bottom: 1rem;
+    }
+    @media (max-width: 768px) {
+      .dispute-container {
+        padding: 2rem 1.5rem 1rem;
+      }
+      .steps-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      .outcome-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      .hero-banner {
+        height: 200px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="logo">GIG<span>ZA</span></div>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/#features">Features</a>
+      <a href="/#how-it-works">How It Works</a>
+    </div>
+  </nav>
+
+  <div class="dispute-container">
+    <div class="dispute-header">
+      <h1>Dispute Resolution</h1>
+      <p>Fair and transparent process for when things go wrong</p>
+    </div>
+
+    <img class="hero-banner" src="Dispute.jpg" alt="Dispute resolution" />
+
+    <div class="section">
+      <h2>How it works</h2>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">1</div>
+          <h3>Report Issue</h3>
+          <p>Within 24 hours of event end time</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">2</div>
+          <h3>Provide Evidence</h3>
+          <p>Photos, videos, messages</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">3</div>
+          <h3>GIGZA Reviews</h3>
+          <p>Both sides examined within 48 hours</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">4</div>
+          <h3>Final Decision</h3>
+          <p>Outcome communicated to both parties</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>What we review</h2>
+      <ul class="bullet-list">
+        <li>Booking confirmation and event details</li>
+        <li>Communication between organizer and creative</li>
+        <li>Photo and video evidence provided</li>
+        <li>Previous ratings and history of both parties</li>
+        <li>Any prior disputes or warnings</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Possible outcomes</h2>
+      <div class="outcome-grid">
+        <div class="outcome-card">
+          <i class="fas fa-check-circle"></i>
+          <h3>Full Refund</h3>
+          <p>Organizer receives 100% back. Creative didn't show up or completely failed to deliver.</p>
+        </div>
+        <div class="outcome-card">
+          <i class="fas fa-adjust"></i>
+          <h3>Partial Refund</h3>
+          <p>Organizer receives percentage back based on what was delivered.</p>
+        </div>
+        <div class="outcome-card">
+          <i class="fas fa-times-circle"></i>
+          <h3>No Refund</h3>
+          <p>Creative keeps full payment. Organizer's complaint was unfounded.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Important notes</h2>
+      <ul class="bullet-list">
+        <li>Disputes must be filed within 24 hours of event end time</li>
+        <li>Payment is held until dispute is resolved</li>
+        <li>Both parties will be notified of the decision</li>
+        <li>Our decision is final and binding</li>
+        <li>Repeated disputes may affect your account standing</li>
+      </ul>
+    </div>
+  </div>
+  
+  <footer>
+    <div class="footer-content">
+      <div class="footer-logo">
+        <div class="logo">GIG<span>ZA</span></div>
+        <p>Connecting Talent to Opportunity. Empowering South Africa's creative workforce.</p>
+      </div>
+      <div class="footer-links">
+        <div>
+          <h4>Platform</h4>
+          <a href="/emergency-mode.html">Emergency Mode</a>
+          <a href="/scheduled-booking.html">Scheduled Booking</a>
+          <a href="/become-a-creative.html">Become a Creative</a>
+        </div>
+        <div>
+          <h4>Support</h4>
+          <a href="/help.html">Help Center</a>
+          <a href="/dispute.html">Dispute Resolution</a>
+          <a href="/safety.html">Safety Tips</a>
+        </div>
+        <div>
+          <h4>Legal</h4>
+          <a href="/terms.html">Terms of Service</a>
+          <a href="/privacy.html">Privacy Policy</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 GIGZA — Your Gig Starts Here. All rights reserved.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
