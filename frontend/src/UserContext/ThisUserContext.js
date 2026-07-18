@@ -16,8 +16,8 @@ export const UserProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
-  // Base API URL - Updated to your new backend
-  const BASE_API ='https://gigza-testing-11.onrender.com';
+  // Base API URL - defaults to local backend for dev; set REACT_APP_API_URL to override
+  const BASE_API = process.env.REACT_APP_API_URL || 'https://gigza-testing-11.onrender.com';
 
   // Helper function to make fetch requests
   const fetchWithNgrok = useCallback(async (url, options = {}) => {

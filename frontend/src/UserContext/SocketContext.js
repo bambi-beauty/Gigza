@@ -34,7 +34,7 @@ export const SocketProvider = ({ children }) => {
 
         console.log('Connecting to WebSocket...');
         
-        const newSocket = io('https://gigza-testing-11.onrender.com/', {
+        const newSocket = io(process.env.REACT_APP_API_URL || 'https://gigza-testing-11.onrender.com', {
             auth: { token },
             transports: ['websocket', 'polling']
         });

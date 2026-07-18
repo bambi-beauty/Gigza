@@ -1,5 +1,5 @@
 // src/services/bookingService.js
-const API_BASE_URL ='https://gigza-testing-11.onrender.com/api';
+const API_BASE_URL = `${process.env.REACT_APP_API_URL || 'https://gigza-testing-11.onrender.com'}/api`;
 
 const getAuthToken = () => {
     return localStorage.getItem('token');
