@@ -8,7 +8,7 @@ const { Pool } = pkg;
 const encodedPassword = encodeURIComponent(process.env.DB_PASSWORD);
 
 const pool = new Pool({
-   connectionString: `postgresql://${process.env.DB_USER}:${encodedPassword}@${process.env.DB_HOST}:5432/${process.env.DB_NAME}`,
+   connectionString: `postgresql://${process.env.DB_USER}:${encodedPassword}@${process.env.DB_HOST}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME}`,
 });
 // Test the connection
 pool.connect((err, client, release) => {
