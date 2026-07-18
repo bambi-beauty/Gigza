@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GIGZA | Admin Panel</title>
+  <link rel="stylesheet" href="admin.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      GIG<span>ZA</span>
+    </div>
+    <div class="sidebar-badge">Admin Panel</div>
+    
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-page="dashboard">
+        <i class="fas fa-th-large"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" data-page="pending">
+        <i class="fas fa-clock"></i>
+        <span>Pending Approval</span>
+        <span class="nav-count" id="pendingCount">0</span>
+      </a>
+      <a href="#" class="nav-item" data-page="verified">
+        <i class="fas fa-check-circle"></i>
+        <span>Verified DJs</span>
+      </a>
+      <a href="#" class="nav-item" data-page="rejected">
+        <i class="fas fa-times-circle"></i>
+        <span>Rejected</span>
+      </a>
+      <a href="#" class="nav-item" data-page="reported">
+        <i class="fas fa-flag"></i>
+        <span>Reported</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+        <button class="logout-btn" onclick="handleLogout()">
+            <i class="fas fa-sign-out-alt"></i> Sign Out
+        </button>
+    </div>
+  </aside>
+
+  <!-- MOBILE HEADER -->
+  <header class="mobile-header">
+    <button class="menu-toggle" id="menuToggle">
+      <i class="fas fa-bars"></i>
+    </button>
+    <div class="mobile-logo">GIG<span>ZA</span> Admin</div>
+  </header>
+
+  <!-- Main content -->
+  <main class="main-content" id="mainContent">
+    
+    <!-- Dashboard page -->
+    <section class="page active" id="dashboard-page">
+      <div class="page-header">
+        <h1>Dashboard</h1>
+        <p>Overview of all DJ applications and platform activity</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card pending">
+          <div class="stat-icon">
+            <i class="fas fa-clock"></i>
+          </div>
+          <div class="stat-info">
+            <span class="stat-number" id="statPending">0</span>
+            <span class="stat-label">Pending</span>
+          </div>
+        </div>
+        <div class="stat-card verified">
+          <div class="stat-icon">
+            <i class="fas fa-check-circle"></i>
+          </div>
+          <div class="stat-info">
+            <span class="stat-number" id="statVerified">0</span>
+            <span class="stat-label">Verified</span>
+          </div>
+        </div>
+        <div class="stat-card rejected">
+          <div class="stat-icon">
+            <i class="fas fa-times-circle"></i>
+          </div>
+          <div class="stat-info">
+            <span class="stat-number" id="statRejected">0</span>
+            <span class="stat-label">Rejected</span>
+          </div>
+        </div>
+        <div class="stat-card reported">
+          <div class="stat-icon">
+            <i class="fas fa-flag"></i>
+          </div>
+          <div class="stat-info">
+            <span class="stat-number" id="statReported">0</span>
+            <span class="stat-label">Reported</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="recent-section">
+        <h3>Recent Applications</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>DJ Name</th>
+                <th>Genre</th>
+                <th>Location</th>
+                <th>Applied</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="recentApplications">
+              <tr class="empty-row">
+                <td colspan="6">
+                  <div class="empty-state-inline">
+                    <i class="fas fa-inbox"></i>
+                    <p>No applications yet</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pending approval page -->
+    <section class="page" id="pending-page">
+      <div class="page-header">
+        <div>
+          <h1>Pending Approval</h1>
+          <p>Review and verify DJ applications before they go live</p>
+        </div>
+      </div>
+
+      <div class="page-actions">
+        <div class="search-box">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="Search by name, location, or genre..." id="searchPending">
+        </div>
+        <select class="filter-select" id="filterGenre">
+          <option value="">All Genres</option>
+          <option value="amapiano">Amapiano</option>
+          <option value="deep-house">Deep House</option>
+          <option value="afro-tech">Afro Tech</option>
+          <option value="hip-hop">Hip Hop</option>
+          <option value="gqom">Gqom</option>
+          <option value="afro-house">Afro House</option>
+        </select>
+        <button class="btn btn-outline" onclick="renderPendingDJs()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+
+      <div class="dj-grid" id="pendingGrid">
+        <div class="empty-state">
+          <i class="fas fa-inbox"></i>
+          <p>No pending applications</p>
+          <span>New DJ applications will appear here for review</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Verified DJs page -->
+    <section class="page" id="verified-page">
+      <div class="page-header">
+        <div>
+          <h1>Verified DJs</h1>
+          <p>All approved and active DJs on the platform</p>
+        </div>
+      </div>
+
+      <div class="page-actions">
+        <div class="search-box">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="Search verified DJs..." id="searchVerified">
+        </div>
+        <button class="btn btn-outline" onclick="renderVerifiedDJs()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+
+      <div class="dj-grid" id="verifiedGrid">
+        <div class="empty-state">
+          <i class="fas fa-users"></i>
+          <p>No verified DJs yet</p>
+          <span>Approved DJs will appear here</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rejected page -->
+    <section class="page" id="rejected-page">
+      <div class="page-header">
+        <h1>Rejected Applications</h1>
+        <p>Previously rejected DJ applications</p>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>DJ Name</th>
+              <th>Genre</th>
+              <th>Reason</th>
+              <th>Date Rejected</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="rejectedTable">
+            <tr class="empty-row">
+              <td colspan="5">
+                <div class="empty-state-inline">
+                  <i class="fas fa-times-circle"></i>
+                  <p>No rejected applications</p>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Report page -->
+    <section class="page" id="reported-page">
+      <div class="page-header">
+        <h1>Reported DJs</h1>
+        <p>DJs that have been flagged or reported by users</p>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>DJ Name</th>
+              <th>Reports</th>
+              <th>Reported By</th>
+              <th>Reason</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="reportedTable">
+            <tr class="empty-row">
+              <td colspan="5">
+                <div class="empty-state-inline">
+                  <i class="fas fa-flag"></i>
+                  <p>No reported DJs</p>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!--This is the modal for DJ DETAILS -->
+  <div class="modal-overlay" id="detailsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalDJName">DJ Name</h2>
+        <button class="modal-close" onclick="closeModal('detailsModal')">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body" id="modalBody">
+      </div>
+      <div class="modal-footer" id="modalFooter">
+      </div>
+    </div>
+  </div>
+
+  <!-- This one is the modal to confirm actions  -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2 id="confirmTitle">Confirm Action</h2>
+        <button class="modal-close" onclick="closeModal('confirmModal')">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmMessage">Are you sure?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel" onclick="closeModal('confirmModal')">Cancel</button>
+        <button class="btn btn-confirm" id="confirmActionBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">
+    <i class="fas fa-check-circle"></i>
+    <span id="toastMessage">Action completed</span>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

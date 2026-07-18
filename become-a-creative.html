@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Become a Creative - GIGZA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="common.css">
+
+  <style>
+    .page {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+    }
+
+    .hero-img {
+      width: 100%;
+      height: 280px;
+      object-fit: cover;
+      border-radius: 14px;
+      display: block;
+      margin-bottom: 2rem;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    .badge {
+      display: inline-block;
+      background: #ede8fc;
+      color: #4a38b0;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 16px;
+      border-radius: 20px;
+      margin-bottom: 1rem;
+      letter-spacing: 0.04em;
+    }
+    .hero h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.02em;
+    }
+    .hero p {
+      font-size: 1rem;
+      color: #5a5a7a;
+      max-width: 500px;
+      margin: 0 auto;
+      line-height: 1.65;
+    }
+
+    .sec-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: #5a5a7a;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .section { margin: 2.5rem 0; }
+
+    .reqs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .req {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      color: #1a1a2e;
+      background: white;
+      border: 1px solid #e8e6f0;
+      border-radius: 8px;
+      padding: 0.8rem 1rem;
+    }
+    .req-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #FF00FF;
+      min-width: 8px;
+    }
+
+    .steps-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      background: white;
+      border: 1px solid #e8e6f0;
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+    }
+    .step-num {
+      min-width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #ede8fc;
+      color: #5c3bb5;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step-text strong {
+      font-weight: 600;
+      font-size: 14px;
+      color: #1a1a2e;
+      display: block;
+      margin-bottom: 3px;
+    }
+    .step-text span {
+      font-size: 13px;
+      color: #5a5a7a;
+      line-height: 1.5;
+    }
+
+    .photo-strip {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 8px;
+      margin: 2.5rem 0;
+      border-radius: 14px;
+      overflow: hidden;
+      height: 190px;
+    }
+    .photo-strip img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .benefits-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .benefit {
+      background: white;
+      border: 1px solid #e8e6f0;
+      border-radius: 14px;
+      padding: 1.1rem 1.25rem;
+    }
+    .benefit h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 5px;
+    }
+    .benefit p {
+      font-size: 13px;
+      color: #5a5a7a;
+      line-height: 1.55;
+    }
+
+    .payment-box {
+      background: #faf9ff;
+      border-radius: 14px;
+      border: 1px solid #e8e6f0;
+      padding: 1.4rem 1.6rem;
+      margin: 2rem 0;
+    }
+    .payment-box h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 0.5rem;
+    }
+    .payment-box p {
+      font-size: 14px;
+      color: #5a5a7a;
+      line-height: 1.65;
+    }
+
+    .cta-bar {
+      background: #f5f0ff;
+      border-radius: 14px;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      margin-top: 2.5rem;
+    }
+    .cta-bar h3 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #3b2a7a;
+      margin-bottom: 0.5rem;
+    }
+    .cta-bar p {
+      font-size: 14px;
+      color: #5c4aaa;
+      margin-bottom: 1.4rem;
+      line-height: 1.6;
+    }
+    .cta-btn {
+      display: inline-block;
+      background: #FF00FF;
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 12px 32px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s;
+      font-family: 'Inter', sans-serif;
+    }
+    .cta-btn:hover { background: #5c3bb5; }
+    @media (max-width: 560px) {
+      .hero h1 { font-size: 1.7rem; }
+      .reqs { grid-template-columns: 1fr; }
+      .benefits-grid { grid-template-columns: 1fr; }
+      .photo-strip { grid-template-columns: 1fr 1fr; height: 140px; }
+      .photo-strip img:last-child { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="logo">GIG<span>ZA</span></div>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/#features">Features</a>
+      <a href="/#how-it-works">How It Works</a>
+    </div>
+  </nav>
+
+  <div class="page">
+
+    <img class="hero-img" src="dj.jpg" alt="DJ performing at a live event" />
+
+    <div class="hero">
+      <div class="badge">Join GIGZA — Phase 1 open</div>
+      <h1>Become a creative</h1>
+      <p>Turn your talent into a sustainable income. Connect with event organizers across South Africa and start getting booked.</p>
+    </div>
+
+    <div class="section">
+      <div class="sec-label">Requirements</div>
+      <div class="reqs">
+        <div class="req"><div class="req-dot"></div>18 years or older</div>
+        <div class="req"><div class="req-dot"></div>Valid SA ID or passport</div>
+        <div class="req"><div class="req-dot"></div>Portfolio or work samples</div>
+        <div class="req"><div class="req-dot"></div>Reliable transport to events</div>
+        <div class="req"><div class="req-dot"></div>Professional equipment</div>
+        <div class="req"><div class="req-dot"></div>Commitment to quality</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-label">How to join</div>
+      <div class="steps-grid">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-text">
+            <strong>Create your profile</strong>
+            <span>Add your name, location, and experience level</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-text">
+            <strong>Upload your portfolio</strong>
+            <span>Photos, videos, or audio mixes of your work</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-text">
+            <strong>Set your rates & availability</strong>
+            <span>You're in control of your pricing and schedule</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-text">
+            <strong>Get verified</strong>
+            <span>Our team reviews your profile usually within 48 hours</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-text">
+            <strong>Start receiving bookings</strong>
+            <span>Clients in your area discover and book you directly</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="photo-strip">
+      <img src="https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?w=600&q=80" alt="Live crowd at event" />
+      <img src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80" alt="DJ at decks" />
+      <img src="https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&q=80" alt="DJ performing" />
+    </div>
+
+    <div class="section">
+      <div class="sec-label">Why join</div>
+      <div class="benefits-grid">
+        <div class="benefit">
+          <h3>More bookings, less hustle</h3>
+          <p>Event organizers come to GIGZA to find talent your profile does the work for you</p>
+        </div>
+        <div class="benefit">
+          <h3>Set your own rates</h3>
+          <p>You decide what you charge and when you're available</p>
+        </div>
+        <div class="benefit">
+          <h3>Build a reputation</h3>
+          <p>Ratings and reviews from real clients grow your credibility over time</p>
+        </div>
+        <div class="benefit">
+          <h3>Grow at your own pace</h3>
+          <p>Earn your way from Scheduled Bookings to Emergency Mode as your profile grows</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="payment-box">
+      <h3>💰 How payments work</h3>
+      <p>When a client books you, GIGZA holds the payment securely. After you complete the event, funds are released within 3–5 business days. A small platform commission applies per booking.</p>
+    </div>
+
+    <div class="cta-bar">
+      <h3>Ready to start?</h3>
+      <p>Phase 1 is open for DJs. Photographers, videographers, and MCs coming soon.</p>
+      <a href="/" class="cta-btn">Join as a creative</a>
+    </div>
+
+  </div>
+
+  <footer>
+    <div class="footer-content">
+      <div class="footer-logo">
+        <div class="logo">GIG<span>ZA</span></div>
+        <p>Connecting Talent to Opportunity. Empowering South Africa's creative workforce.</p>
+      </div>
+      <div class="footer-links">
+        <div>
+          <h4>Platform</h4>
+          <a href="/emergency-mode.html">Emergency Mode</a>
+          <a href="/scheduled-booking.html">Scheduled Booking</a>
+          <a href="/become-a-creative.html">Become a Creative</a>
+        </div>
+        <div>
+          <h4>Support</h4>
+          <a href="/help.html">Help Center</a>
+          <a href="/dispute.html">Dispute Resolution</a>
+          <a href="/safety.html">Safety Tips</a>
+        </div>
+        <div>
+          <h4>Legal</h4>
+          <a href="/terms.html">Terms of Service</a>
+          <a href="/privacy.html">Privacy Policy</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 GIGZA — Your Gig Starts Here. All rights reserved.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GIGZA | Admin Login</title>
+  <link rel="stylesheet" href="admin-login.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+
+  <div class="login-container">
+    <div class="login-wrapper">
+      
+      <!-- Left Side: Brand -->
+      <div class="login-brand">
+        <div class="brand-content">
+          <div class="brand-logo">
+            <i class="fas fa-shield-halved"></i>
+          </div>
+          <h1>GIG<span>ZA</span></h1>
+          <div class="brand-badge">Admin Portal</div>
+          <p>Manage DJ applications, verify creatives, and keep the platform running smoothly.</p>
+          
+          <div class="brand-features">
+            <div class="brand-feature">
+              <i class="fas fa-check-circle"></i>
+              <span>Approve & verify DJs</span>
+            </div>
+            <div class="brand-feature">
+              <i class="fas fa-check-circle"></i>
+              <span>Manage user reports</span>
+            </div>
+            <div class="brand-feature">
+              <i class="fas fa-check-circle"></i>
+              <span>Monitor platform activity</span>
+            </div>
+          </div>
+        </div>
+    
+      </div>
+
+      <!-- Right Side: Login Form -->
+      <div class="login-form-section">
+        <div class="form-header">
+          <h2>Admin Sign In</h2>
+          <p>Enter your credentials to access the admin panel</p>
+        </div>
+
+        <form class="login-form" id="loginForm" onsubmit="handleLogin(event)">
+          
+          <!-- Email Field -->
+          <div class="form-group">
+            <label for="email">Email Address</label>
+            <div class="input-wrapper">
+              <i class="fas fa-envelope"></i>
+              <input 
+                type="email" 
+                id="email" 
+                placeholder="admin@gigza.co.za" 
+                required
+                autocomplete="email"
+              >
+            </div>
+          </div>
+
+          <!-- Password Field -->
+          <div class="form-group">
+            <label for="password">Password</label>
+            <div class="input-wrapper">
+              <i class="fas fa-lock"></i>
+              <input 
+                type="password" 
+                id="password" 
+                placeholder="Enter your password" 
+                required
+                autocomplete="current-password"
+              >
+              <button type="button" class="toggle-password" onclick="togglePassword()">
+                <i class="fas fa-eye" id="toggleIcon"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Remember & Forgot -->
+          <div class="form-options">
+            <label class="remember-me">
+              <input type="checkbox" id="remember">
+              <span class="checkmark"></span>
+              Remember me
+            </label>
+            <a href="#" class="forgot-link" onclick="showForgotPassword()">Forgot password?</a>
+          </div>
+
+          <!-- Error Message -->
+          <div class="error-message" id="errorMessage">
+            <i class="fas fa-exclamation-circle"></i>
+            <span id="errorText"></span>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" class="btn-login" id="loginBtn">
+            <span id="loginBtnText">Sign In</span>
+            <i class="fas fa-arrow-right"></i>
+          </button>
+
+          <!-- Loading State -->
+          <button type="button" class="btn-login btn-loading" id="loadingBtn" style="display: none;" disabled>
+            <i class="fas fa-spinner fa-spin"></i>
+            Signing in...
+          </button>
+
+        </form>
+
+        <!-- Security Note -->
+        <div class="security-note">
+          <i class="fas fa-lock"></i>
+          <span>Secure admin access only. All login attempts are logged.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FORGOT PASSWORD MODAL -->
+  <div class="modal-overlay" id="forgotModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Reset Password</h2>
+        <button class="modal-close" onclick="closeForgotPassword()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>Enter your admin email address and we'll send you a reset link.</p>
+        <div class="form-group" style="margin-top: 1rem;">
+          <label for="resetEmail">Admin Email</label>
+          <div class="input-wrapper">
+            <i class="fas fa-envelope"></i>
+            <input type="email" id="resetEmail" placeholder="admin@gigza.co.za">
+          </div>
+        </div>
+        <div class="success-message" id="resetSuccess" style="display: none;">
+          <i class="fas fa-check-circle"></i>
+          <span>Reset link sent! Check your email.</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="closeForgotPassword()">Cancel</button>
+        <button class="btn-confirm" onclick="handleResetPassword()">Send Reset Link</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="admin-login.js"></script>
+</body>
+</html>
