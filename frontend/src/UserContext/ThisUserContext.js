@@ -15,9 +15,7 @@ export const UserProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
-  // Base API URL - defaults to local backend for dev; set REACT_APP_API_URL to override
-  const BASE_API = process.env.REACT_APP_API_URL || 'https://gigza-testing-11.onrender.com';
+  const BASE_API ='https://gigza-testing-11.onrender.com';
 
   // Helper function to make fetch requests
   const fetchWithNgrok = useCallback(async (url, options = {}) => {
@@ -38,7 +36,7 @@ export const UserProvider = ({ children }) => {
         headers,
       });
 
-      console.log(`📡 Response status: ${response.status} for ${url}`);
+      // console.log(`📡 Response status: ${response.status} for ${url}`);
 
       if (response.status === 401) {
         const data = await response.json().catch(() => ({}));
@@ -140,7 +138,7 @@ export const UserProvider = ({ children }) => {
     setLoading(true);
     
     try {
-      console.log("🔐 Logging in at:", `${BASE_API}/api/auth/login`);
+      // console.log("🔐 Logging in at:", `${BASE_API}/api/auth/login`);
       
       const response = await fetch(`${BASE_API}/api/auth/login`, {
         method: 'POST',
