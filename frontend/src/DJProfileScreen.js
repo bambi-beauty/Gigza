@@ -43,7 +43,7 @@ import { useUser } from "./UserContext/ThisUserContext";
 // API base URL
 const API_BASE_URL = "https://gigza-testing-11.onrender.com/api";
 
-// Helper function for fetch requests
+// Helper function for authenticated fetch requests
 const fetchWithAuth = async (url, options = {}, token) => {
     const headers = {
         'Content-Type': 'application/json',
@@ -282,7 +282,7 @@ export function DJProfileScreen() {
                 setShowReviewModal(false);
 
                 // Show success message
-                alert("Review submitted successfully! It will appear after moderation.");
+                alert("Review submitted successfully!");
             } else {
                 alert(data.message || "Failed to submit review");
             }
@@ -604,7 +604,7 @@ export function DJProfileScreen() {
                                                             </span>
                                                             <div className="flex items-center gap-0.5 ml-auto">
                                                                 {[...Array(5)].map((_, j) => (
-                                                                    <Star key={j} className={`w-3 h-3 ${j < (review.rating_value || 0) ? 'text-yellow-500 fill-yellow-500' : 'text-zinc-700'}`} />
+                                                                    <Star key={j} className={`w-3 h-3 ${j < (review.rating || 0) ? 'text-yellow-500 fill-yellow-500' : 'text-zinc-700'}`} />
                                                                 ))}
                                                             </div>
                                                         </div>

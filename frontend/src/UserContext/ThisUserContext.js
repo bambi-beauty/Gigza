@@ -1,3 +1,4 @@
+// UserContext.js
 import React, { useState, createContext, useContext, useEffect, useCallback } from "react";
 
 const UserContext = createContext();
@@ -15,50 +16,7 @@ export const UserProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const BASE_API ='https://gigza-testing-11.onrender.com';
-
-  // Helper function to make fetch requests
-  const fetchWithNgrok = useCallback(async (url, options = {}) => {
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...options.headers,
-    };
-
-    const token = localStorage.getItem("token");
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
-
-      // console.log(`📡 Response status: ${response.status} for ${url}`);
-
-      if (response.status === 401) {
-        const data = await response.json().catch(() => ({}));
-        if (data.message?.includes('expired') || data.message?.includes('invalid')) {
-          logout();
-          throw new Error('Session expired. Please login again.');
-        }
-      }
-
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const textResponse = await response.text();
-        console.error("Non-JSON response:", textResponse.substring(0, 200));
-        throw new Error(`Server error. Please try again.`);
-      }
-
-      return response;
-    } catch (error) {
-      console.error(`Fetch error for ${url}:`, error);
-      throw error;
-    }
-  }, []);
+  const BASE_API = 'https://gigza-testing-11.onrender.com';
 
   useEffect(() => {
     const initializeAuth = () => {
@@ -90,14 +48,12 @@ export const UserProvider = ({ children }) => {
     setIsAuthenticated(false);
   }, []);
 
-  // ========== SIGNUP (No OTP needed) ==========
+  // ========== SIGNUP ==========
   const signup = async (username, email, password) => {
     setError(null);
     setLoading(true);
     
     try {
-      console.log("📝 Signing up at:", `${BASE_API}/api/auth/signup`);
-      
       const response = await fetch(`${BASE_API}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -105,14 +61,12 @@ export const UserProvider = ({ children }) => {
       });
       
       const data = await response.json();
-      console.log("Signup response:", data);
       
       if (!response.ok) {
         throw new Error(data.message || 'Signup failed');
       }
       
       if (data.success && data.token) {
-        // Auto-login after signup
         setAuthData(data.token, data.user);
         return { 
           success: true, 
@@ -138,8 +92,6 @@ export const UserProvider = ({ children }) => {
     setLoading(true);
     
     try {
-      // console.log("🔐 Logging in at:", `${BASE_API}/api/auth/login`);
-      
       const response = await fetch(`${BASE_API}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -174,8 +126,6 @@ export const UserProvider = ({ children }) => {
     setLoading(true);
     
     try {
-      console.log("🔐 Google login at:", `${BASE_API}/api/auth/google-login`);
-      
       const response = await fetch(`${BASE_API}/api/auth/google-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -183,7 +133,6 @@ export const UserProvider = ({ children }) => {
       });
       
       const data = await response.json();
-      console.log("Google login response:", data);
       
       if (!response.ok) {
         throw new Error(data.message || 'Google login failed');
@@ -205,13 +154,11 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  // ========== VERIFY OTP (Deprecated - kept for compatibility) ==========
+  // ========== VERIFY OTP (Deprecated) ==========
   const verifyOTP = async (email, otp) => {
-    // No OTP needed - auto verified
     return { success: true, message: "Email already verified" };
   };
 
-  // ========== RESEND OTP (Deprecated - kept for compatibility) ==========
   const resendOTP = async (email) => {
     return { success: true, message: "No OTP needed. Email is auto-verified." };
   };
@@ -222,9 +169,13 @@ export const UserProvider = ({ children }) => {
     setLoading(true);
     
     try {
+      const token = getToken();
       const response = await fetch(`${BASE_API}/api/auth/complete-profile`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
         body: JSON.stringify({ userid, ...profileData })
       });
       
@@ -283,9 +234,13 @@ export const UserProvider = ({ children }) => {
     setLoading(true);
     
     try {
+      const token = getToken();
       const response = await fetch(`${BASE_API}/api/auth/profile`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
         body: JSON.stringify(profileData)
       });
       
@@ -335,9 +290,13 @@ export const UserProvider = ({ children }) => {
     setLoading(true);
     
     try {
+      const token = getToken();
       const response = await fetch(`${BASE_API}/api/dj/apply`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
         body: JSON.stringify(applicationData)
       });
       
@@ -355,8 +314,10 @@ export const UserProvider = ({ children }) => {
 
   const getDJApplicationStatus = async () => {
     try {
+      const token = getToken();
       const response = await fetch(`${BASE_API}/api/dj/application-status`, {
-        method: 'GET'
+        method: 'GET',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       const data = await response.json();
       if (response.ok && data.success) {

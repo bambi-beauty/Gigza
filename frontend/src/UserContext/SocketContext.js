@@ -25,39 +25,52 @@ export const SocketProvider = ({ children }) => {
     const searchTimeoutRef = useRef(null);
 
     useEffect(() => {
-        const token = getToken();
-        
-        if (!token || !user) {
-            console.log('No token or user, skipping socket connection');
+        // ✅ DISABLE WebSocket in production (no server running on Render)
+        if (process.env.NODE_ENV === 'production') {
+            console.log('🔌 WebSocket disabled in production');
+            setIsConnected(false);
             return;
         }
 
-        console.log('Connecting to WebSocket...');
+        const token = getToken();
         
-        const newSocket = io(process.env.REACT_APP_API_URL || 'https://gigza-testing-11.onrender.com', {
+        if (!token || !user) {
+            console.log('🔌 No token or user, skipping socket connection');
+            return;
+        }
+
+        // ✅ Only connect in development
+        const socketUrl = 'ws://localhost:5000';
+        console.log(`🔌 Connecting to WebSocket at: ${socketUrl}`);
+        
+        const newSocket = io(socketUrl, {
             auth: { token },
-            transports: ['websocket', 'polling']
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: 3,
+            reconnectionDelay: 1000,
+            timeout: 10000
         });
 
         newSocket.on('connect', () => {
-            console.log('WebSocket connected');
+            console.log('✅ WebSocket connected');
             setIsConnected(true);
         });
 
-        newSocket.on('disconnect', () => {
-            console.log('WebSocket disconnected');
+        newSocket.on('disconnect', (reason) => {
+            console.log('❌ WebSocket disconnected:', reason);
             setIsConnected(false);
             setIsSearching(false);
         });
 
         newSocket.on('connect_error', (error) => {
-            console.error('WebSocket connection error:', error);
+            console.error('⚠️ WebSocket connection error:', error.message);
             setIsConnected(false);
         });
 
         // Listen for nearby DJs response
         newSocket.on('user:nearbyDJs', (data) => {
-            console.log('Received nearby DJs:', data);
+            console.log('📡 Received nearby DJs:', data);
             setIsSearching(false);
             
             if (searchTimeoutRef.current) {
@@ -73,7 +86,7 @@ export const SocketProvider = ({ children }) => {
 
         // Listen for DJ location updates
         newSocket.on('dj:locationUpdate', (data) => {
-            console.log('DJ location update:', data);
+            console.log('📍 DJ location update:', data);
             if (trackedDJ === data.djId) {
                 setDjLocation(data.location);
             }
@@ -81,8 +94,7 @@ export const SocketProvider = ({ children }) => {
 
         // Listen for DJ status changes
         newSocket.on('dj:statusChanged', (data) => {
-            console.log('DJ status changed:', data);
-            // Update nearby DJs list with new status
+            console.log('🔄 DJ status changed:', data);
             setNearbyDJs(prev => prev.map(dj => 
                 dj.dj_id === data.djId 
                     ? { ...dj, is_online: data.isOnline }
@@ -92,7 +104,7 @@ export const SocketProvider = ({ children }) => {
 
         // Listen for errors
         newSocket.on('error', (error) => {
-            console.error('Socket error:', error);
+            console.error('❌ Socket error:', error);
         });
 
         setSocket(newSocket);
@@ -101,28 +113,29 @@ export const SocketProvider = ({ children }) => {
             if (searchTimeoutRef.current) {
                 clearTimeout(searchTimeoutRef.current);
             }
-            newSocket.disconnect();
+            if (newSocket) {
+                newSocket.disconnect();
+            }
         };
     }, [user, getToken]);
 
     const searchNearbyDJs = (latitude, longitude, radius_km = 1.5) => {
         if (!socket || !isConnected) {
-            console.error('Socket not connected');
+            console.error('❌ Socket not connected');
             return;
         }
         
-        console.log(`Searching for DJs within ${radius_km}km`);
+        console.log(`🔍 Searching for DJs within ${radius_km}km`);
         setIsSearching(true);
         setNearbyDJs([]);
         
-        // Set timeout for search response
         if (searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
         }
         
         searchTimeoutRef.current = setTimeout(() => {
             if (isSearching) {
-                console.log('Search timeout - no response');
+                console.log('⏰ Search timeout - no response');
                 setIsSearching(false);
                 setNearbyDJs([]);
             }
@@ -132,7 +145,10 @@ export const SocketProvider = ({ children }) => {
     };
 
     const trackDJ = (djId) => {
-        if (!socket || !isConnected) return;
+        if (!socket || !isConnected) {
+            console.error('❌ Socket not connected');
+            return;
+        }
         
         setTrackedDJ(djId);
         socket.emit('user:trackDJ', { djId });
@@ -147,7 +163,10 @@ export const SocketProvider = ({ children }) => {
     };
 
     const requestETA = (djId, userLatitude, userLongitude, callback) => {
-        if (!socket || !isConnected) return;
+        if (!socket || !isConnected) {
+            console.error('❌ Socket not connected');
+            return;
+        }
         
         socket.emit('user:requestETA', { djId, userLatitude, userLongitude }, (response) => {
             if (callback) callback(response);
@@ -155,7 +174,10 @@ export const SocketProvider = ({ children }) => {
     };
 
     const requestRide = (djId, pickupLocation, eventDetails) => {
-        if (!socket || !isConnected) return;
+        if (!socket || !isConnected) {
+            console.error('❌ Socket not connected');
+            return;
+        }
         
         socket.emit('user:requestRide', { djId, pickupLocation, eventDetails });
     };
