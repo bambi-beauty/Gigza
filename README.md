@@ -1,70 +1,231 @@
-# Getting Started with Create React App
+# 🎵 Gigza – DJ Booking & Event Management Platform
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+![License](https://img.shields.io/badge/license-Educational-blue)
+![Status](https://img.shields.io/badge/status-In%20Development-green)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue)
+![Node.js](https://img.shields.io/badge/Node.js-Backend-success)
 
-## Available Scripts
+## 📖 Overview
 
-In the project directory, you can run:
+Gigza is a full-stack DJ booking platform designed to simplify the process of connecting clients with professional DJs.
 
-### `npm start`
+The platform enables users to browse DJs, submit booking requests, manage events, process payments, and receive real-time notifications while providing administrators with powerful tools to manage the entire ecosystem.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+This project was developed as a collaborative university group project to demonstrate modern software engineering principles, database design, backend development, and teamwork.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+---
 
-### `npm test`
+# 🎯 Project Objectives
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+The primary objectives of Gigza are to:
 
-### `npm run build`
+- Provide a seamless booking experience.
+- Digitize the DJ hiring process.
+- Improve communication between clients and DJs.
+- Eliminate manual booking methods.
+- Demonstrate scalable software architecture.
+- Showcase database design and implementation.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+---
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+# 🚀 Key Features
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## 👤 User Management
 
-### `npm run eject`
+- User Registration
+- Secure Login
+- Role-Based Access Control
+- Profile Management
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+---
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## 🎧 DJ Management
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+- DJ Applications
+- DJ Profiles
+- Portfolio Management
+- Availability Tracking
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+---
 
-## Learn More
+## 📅 Booking System
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+- Create Bookings
+- Accept/Reject Requests
+- Booking History
+- Event Scheduling
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+---
 
-### Code Splitting
+## 💳 Payment Module
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+- Secure Payment Processing
+- Payment Confirmation
+- Transaction History
 
-### Analyzing the Bundle Size
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## 🔔 Notification System
 
-### Making a Progressive Web App
+- Booking Notifications
+- Payment Notifications
+- Admin Announcements
+- Account Updates
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+---
 
-### Advanced Configuration
+## 🛡️ Administration
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+- Manage Users
+- Approve DJs
+- Manage Bookings
+- Platform Monitoring
 
-### Deployment
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+# 🏗️ System Architecture
 
-### `npm run build` fails to minify
+The project follows a modular architecture where different components communicate through APIs.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+```
+Client
+   │
+   ▼
+Frontend
+   │
+   ▼
+Backend API
+   │
+   ├── Authentication
+   ├── Booking Service
+   ├── Notification Service
+   ├── Payment Service
+   └── PostgreSQL Database
+```
+
+---
+
+# 🗄️ Database
+
+Gigza uses **PostgreSQL** as its primary relational database.
+
+The database stores:
+
+- Users
+- DJs
+- Bookings
+- Payments
+- Notifications
+- Reviews
+- Events
+
+The design follows database normalization principles to reduce redundancy and maintain data integrity.
+
+---
+
+# 💻 Technologies Used
+
+## Frontend
+
+- React
+- HTML5
+- CSS3
+- JavaScript
+
+## Backend
+
+- Node.js
+- Express.js
+
+## Database
+
+- PostgreSQL
+
+## Authentication
+
+- JWT
+
+## Tools
+
+- Git
+- GitHub
+- VS Code
+- Postman
+
+---
+
+# 👥 Team Collaboration
+
+This project demonstrates effective collaboration by dividing responsibilities among team members while maintaining a shared vision.
+
+Key collaboration practices included:
+
+- Git version control
+- Branch management
+- Code reviews
+- Task delegation
+- Weekly progress meetings
+- Database integration
+- API development
+
+Working as a team allowed members to specialize in different areas while learning from one another throughout the software development lifecycle.
+
+---
+
+# 📚 Educational Value
+
+Gigza was developed to strengthen our understanding of:
+
+- Software Engineering
+- Database Design
+- API Development
+- Backend Architecture
+- Team Collaboration
+- Version Control
+- Problem Solving
+- Agile Development Principles
+
+The project bridges theoretical knowledge with practical implementation by solving a real-world business problem.
+
+---
+
+# 🌍 Real-World Impact
+
+Gigza addresses common challenges in the entertainment industry by:
+
+- Simplifying DJ discovery
+- Reducing booking delays
+- Improving communication
+- Providing centralized event management
+- Enhancing customer experience
+
+---
+
+# 📈 Future Improvements
+
+- Mobile Application
+- AI DJ Recommendation System
+- Live Chat
+- Event Analytics Dashboard
+- Email Notifications
+- SMS Notifications
+- QR Code Event Check-ins
+- Calendar Integration
+
+---
+
+# 🤝 Contribution
+
+This project was developed collaboratively by our university group. Every member contributed to the planning, design, implementation, testing, and documentation of the system.
+
+---
+
+# 📄 License
+
+This project was developed for educational purposes as part of a university software development project.
+
+---
+
+## ⭐ Acknowledgements
+
+Special thanks to our lecturer, teammates, and the open-source community for providing the tools, documentation, and knowledge that made this project possible.
