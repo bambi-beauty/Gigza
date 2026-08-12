@@ -3,6 +3,7 @@ import "./Login.css";
 import { FcGoogle } from "react-icons/fc";
 import { FaFacebook, FaArrowRight } from "react-icons/fa";
 import { AiOutlineMail, AiOutlineLock, AiOutlineUser } from "react-icons/ai";
+import { HiOutlineUser, HiOutlineMusicNote } from "react-icons/hi";
 import { motion, AnimatePresence } from "framer-motion";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../firebase";
@@ -11,6 +12,7 @@ import { useUser } from "../UserContext/ThisUserContext";
 function Login({ goToProfileSetup, goToHome }) {
   const { login, signup, googleLogin, loading: authLoading, error: authError, setError } = useUser();
   const [isLogin, setIsLogin] = useState(true);
+  const [loginAs, setLoginAs] = useState("fan"); // "fan" | "dj"
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -92,11 +94,16 @@ function Login({ goToProfileSetup, goToHome }) {
     
     try {
       const result = await signup(formData.name, formData.email, formData.password);
-      
+
       if (result.success) {
         // Store user info for profile setup
         localStorage.setItem("newUserEmail", formData.email);
         localStorage.setItem("newUserName", formData.name);
+        if (loginAs === "dj") {
+          localStorage.setItem("signupIntent", "dj");
+        } else {
+          localStorage.removeItem("signupIntent");
+        }
         // Go to profile setup screen
         goToProfileSetup();
       } else {
@@ -119,9 +126,13 @@ function Login({ goToProfileSetup, goToHome }) {
     
     try {
       const result = await login(formData.email, formData.password);
-      
+
       if (result.success) {
-        goToHome();
+        if (loginAs === "dj" && result.user?.usertype !== "dj") {
+          setErrors({ submit: "This account isn't registered as a DJ yet. Sign in as Fan instead, then apply to become a DJ from your profile." });
+          return;
+        }
+        goToHome(result.user);
       } else {
         setErrors({ submit: result.error || "Login failed. Please check your credentials." });
       }
@@ -158,9 +169,16 @@ function Login({ goToProfileSetup, goToHome }) {
           // New user - go to profile setup
           localStorage.setItem("newUserEmail", user.email);
           localStorage.setItem("newUserName", user.displayName);
+          if (loginAs === "dj") {
+            localStorage.setItem("signupIntent", "dj");
+          } else {
+            localStorage.removeItem("signupIntent");
+          }
           goToProfileSetup();
+        } else if (loginAs === "dj" && loginResult.user?.usertype !== "dj") {
+          setErrors({ submit: "This account isn't registered as a DJ yet. Sign in as Fan instead, then apply to become a DJ from your profile." });
         } else {
-          goToHome();
+          goToHome(loginResult.user);
         }
       } else {
         setErrors({ submit: loginResult.error || "Google login failed. Please try again." });
@@ -252,7 +270,9 @@ function Login({ goToProfileSetup, goToHome }) {
             transition={{ delay: 0.2 }}
             className="title"
           >
-            {isLogin ? "Welcome Back! 👋" : "Create Your Account 🎉"}
+            {isLogin
+              ? (loginAs === "dj" ? "Welcome Back, DJ! 🎧" : "Welcome Back! 👋")
+              : "Create Your Account 🎉"}
           </motion.h2>
 
           <motion.p
@@ -261,10 +281,29 @@ function Login({ goToProfileSetup, goToHome }) {
             transition={{ delay: 0.3 }}
             className="subtitle"
           >
-            {isLogin 
-              ? "Sign in to continue your music journey" 
+            {isLogin
+              ? (loginAs === "dj" ? "Sign in to manage your gigs" : "Sign in to continue your music journey")
               : "Join Gigza and start your DJ adventure"}
           </motion.p>
+
+          <div className="role-toggle">
+            <button
+              type="button"
+              className={`role-btn ${loginAs === "fan" ? "active" : ""}`}
+              onClick={() => setLoginAs("fan")}
+              disabled={isLoadingState}
+            >
+              <HiOutlineUser /> Fan
+            </button>
+            <button
+              type="button"
+              className={`role-btn ${loginAs === "dj" ? "active" : ""}`}
+              onClick={() => setLoginAs("dj")}
+              disabled={isLoadingState}
+            >
+              <HiOutlineMusicNote /> DJ
+            </button>
+          </div>
 
           <AnimatePresence mode="wait">
             <motion.form

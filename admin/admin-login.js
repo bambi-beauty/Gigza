@@ -22,7 +22,7 @@ const VALID_ADMINS = [
 
 document.addEventListener('DOMContentLoaded', () => {
   checkExistingSession();
- l
+
   const rememberedEmail = localStorage.getItem('gigza_admin_remember');
   if (rememberedEmail) {
     document.getElementById('email').value = rememberedEmail;

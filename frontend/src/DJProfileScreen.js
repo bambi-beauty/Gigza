@@ -203,14 +203,7 @@ export function DJProfileScreen() {
                 return;
             }
 
-            navigate(`/checkout/${dj.id}`, {
-                state: {
-                    date: selectedDate,
-                    time: selectedTime,
-                    duration: bookingDuration,
-                    totalPrice: dj.price * bookingDuration
-                }
-            });
+            navigate(`/book/${dj.id}`);
         } catch (error) {
             console.error("Booking error:", error);
             setError(error.message);

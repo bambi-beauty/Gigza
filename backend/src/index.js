@@ -3,8 +3,11 @@ import cors from "cors";
 import dotenv from "dotenv"; 
 import { createServer } from "http";  
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import swaggerUi from 'swagger-ui-express';
+import yaml from 'js-yaml';
 
 dotenv.config();
 
@@ -91,6 +94,11 @@ async function cleanupOldCacheFiles() {
 
 app.use(express.json());
 app.use(cors());
+
+// API documentation (Swagger UI)
+const openapiPath = path.join(__dirname, '..', 'docs', 'openapi.yaml');
+const openapiSpec = yaml.load(fsSync.readFileSync(openapiPath, 'utf8'));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
 
 // Health check endpoint (useful for monitoring)
 app.get("/api/health", (req, res) => {

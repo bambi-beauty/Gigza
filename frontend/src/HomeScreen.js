@@ -724,7 +724,10 @@ export function HomeScreen() {
                         <span className="text-white font-bold text-lg">R{price}</span>
                         <span className="text-zinc-500 text-xs"> / hour</span>
                       </div>
-                      <button className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-purple-500/25 transition">
+                      <button
+                        onClick={() => navigate(`/book/${dj.id}`)}
+                        className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-purple-500/25 transition"
+                      >
                         Book Now
                       </button>
                     </div>
@@ -809,10 +812,16 @@ export function HomeScreen() {
                           </button>
                           <Link
                             to={`/dj/${dj.id}`}
-                            className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-6 py-2 rounded-xl font-medium hover:shadow-lg hover:shadow-purple-500/25 transition"
+                            className="text-zinc-400 hover:text-white transition px-4 py-2 border border-white/10 rounded-xl"
                           >
                             View Profile
                           </Link>
+                          <button
+                            onClick={() => navigate(`/book/${dj.id}`)}
+                            className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-6 py-2 rounded-xl font-medium hover:shadow-lg hover:shadow-purple-500/25 transition"
+                          >
+                            Book Now
+                          </button>
                         </div>
                       </div>
                     </div>

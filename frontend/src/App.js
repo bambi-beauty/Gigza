@@ -62,9 +62,14 @@ function AppContent() {
     navigate("/profile-setup");
   };
 
-  const goToHome = () => {
+  const goToHome = (user) => {
     localStorage.removeItem("needsProfileSetup");
-    navigate("/");
+    if (localStorage.getItem("signupIntent") === "dj") {
+      localStorage.removeItem("signupIntent");
+      navigate("/apply-dj");
+      return;
+    }
+    navigate(user?.usertype === "dj" ? "/requests" : "/");
   };
 
   if (isLoading) {
