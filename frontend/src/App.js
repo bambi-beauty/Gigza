@@ -8,7 +8,7 @@ import { ProfileSetupScreen } from "./ProfileSetupScreen";
 import { TopNav } from "./TopNav";
 import { HomeScreen } from "./HomeScreen";
 import { BookingManagementScreen } from "./BookingManagementScreen";
-import { BookingFormScreen } from "./BookingFormScreen"; // ✅ Add this
+import { BookingFormScreen } from "./BookingFormScreen";
 import { DJProfileScreen } from "./DJProfileScreen";
 import { EarningsDashboardScreen } from "./EarningsDashboardScreen";
 import { EmergencyDJScreen } from "./EmergencyDJScreen";
@@ -21,6 +21,8 @@ import { DJRequestsScreen } from "./DJRequestsScreen";
 import { ReviewScreen } from "./ReviewScreen";
 import { DJApplicationScreen } from "./DJApplicationScreen";
 
+// ✅ FIX: Move these components OUTSIDE AppContent
+// ProtectedRoute component - checks authentication
 function ProtectedRoute({ children }) {
   const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
   if (!isAuthenticated) {
@@ -29,6 +31,7 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// AuthenticatedLayout component - wraps authenticated pages with TopNav
 function AuthenticatedLayout({ children }) {
   return (
     <>
@@ -38,6 +41,7 @@ function AuthenticatedLayout({ children }) {
   );
 }
 
+// AppContent component
 function AppContent() {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
@@ -55,7 +59,7 @@ function AppContent() {
     if (needsProfileSetup && !window.location.pathname.includes("/profile-setup")) {
       navigate("/profile-setup");
     }
-  }, []);
+  }, [navigate]);
 
   const goToProfileSetup = () => {
     localStorage.setItem("needsProfileSetup", "true");
@@ -85,7 +89,6 @@ function AppContent() {
 
       {/* ========== PROTECTED ROUTES (Auth Required) ========== */}
       
-      {/* Home */}
       <Route
         path="/"
         element={
@@ -97,7 +100,6 @@ function AppContent() {
         }
       />
       
-      {/* Bookings */}
       <Route
         path="/bookings"
         element={
@@ -109,7 +111,6 @@ function AppContent() {
         }
       />
       
-      {/* Booking Form - Create new booking */}
       <Route
         path="/book/:djId"
         element={
@@ -121,7 +122,6 @@ function AppContent() {
         }
       />
       
-      {/* DJ Profile */}
       <Route
         path="/dj/:id"
         element={
@@ -133,7 +133,6 @@ function AppContent() {
         }
       />
       
-      {/* DJ Dashboard (for approved DJs) */}
       <Route
         path="/dashboard"
         element={
@@ -145,7 +144,6 @@ function AppContent() {
         }
       />
       
-      {/* Emergency SOS */}
       <Route
         path="/emergency"
         element={
@@ -157,7 +155,6 @@ function AppContent() {
         }
       />
       
-      {/* Notifications */}
       <Route
         path="/notifications"
         element={
@@ -169,7 +166,6 @@ function AppContent() {
         }
       />
       
-      {/* Checkout / Payment */}
       <Route
         path="/checkout/:djId"
         element={
@@ -181,7 +177,6 @@ function AppContent() {
         }
       />
       
-      {/* Leave Review */}
       <Route
         path="/review/:bookingId"
         element={
@@ -193,7 +188,6 @@ function AppContent() {
         }
       />
       
-      {/* Scheduled Booking (alternative booking flow) */}
       <Route
         path="/schedule/:id"
         element={
@@ -205,7 +199,6 @@ function AppContent() {
         }
       />
       
-      {/* User Profile */}
       <Route
         path="/profile"
         element={
@@ -217,7 +210,6 @@ function AppContent() {
         }
       />
       
-      {/* DJ Requests (for DJs to see booking requests) */}
       <Route
         path="/requests"
         element={
@@ -229,7 +221,6 @@ function AppContent() {
         }
       />
       
-      {/* Apply to Become a DJ */}
       <Route
         path="/apply-dj"
         element={

@@ -1,4 +1,5 @@
-// UserContext.js
+// UserContext/ThisUserContext.js
+
 import React, { useState, createContext, useContext, useEffect, useCallback } from "react";
 
 const UserContext = createContext();
@@ -16,12 +17,16 @@ export const UserProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [requiresVerification, setRequiresVerification] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
   const BASE_API = 'https://gigza-testing-11.onrender.com';
 
   useEffect(() => {
     const initializeAuth = () => {
       const token = localStorage.getItem("token");
       const userData = localStorage.getItem("user");
+      const pendingEmail = localStorage.getItem("verificationEmail");
       
       if (token && userData) {
         try {
@@ -33,6 +38,12 @@ export const UserProvider = ({ children }) => {
           clearAuthData();
         }
       }
+      
+      if (pendingEmail) {
+        setVerificationEmail(pendingEmail);
+        setRequiresVerification(true);
+      }
+      
       setLoading(false);
     };
     initializeAuth();
@@ -46,12 +57,28 @@ export const UserProvider = ({ children }) => {
     localStorage.removeItem("pendingUserName");
     setUser(null);
     setIsAuthenticated(false);
+    setRequiresVerification(false);
+    setVerificationEmail(null);
+  }, []);
+
+  // ========== SET AUTH DATA ==========
+  const setAuthData = useCallback((token, userData) => {
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(userData));
+    localStorage.setItem("isAuthenticated", "true");
+    setUser(userData);
+    setIsAuthenticated(true);
+    setRequiresVerification(false);
+    setVerificationEmail(null);
+    localStorage.removeItem("verificationEmail");
+    localStorage.removeItem("pendingUserName");
   }, []);
 
   // ========== SIGNUP ==========
   const signup = async (username, email, password) => {
     setError(null);
     setLoading(true);
+    setRequiresVerification(false);
     
     try {
       const response = await fetch(`${BASE_API}/api/auth/signup`, {
@@ -66,13 +93,33 @@ export const UserProvider = ({ children }) => {
         throw new Error(data.message || 'Signup failed');
       }
       
-      if (data.success && data.token) {
-        setAuthData(data.token, data.user);
-        return { 
-          success: true, 
-          message: "Account created successfully!",
-          user: data.user
-        };
+      if (data.success) {
+        // ✅ Check if verification is required
+        if (data.requiresVerification) {
+          localStorage.setItem("verificationEmail", email);
+          localStorage.setItem("pendingUserName", username);
+          setVerificationEmail(email);
+          setRequiresVerification(true);
+          
+          return { 
+            success: true, 
+            requiresVerification: true,
+            message: data.message || "Please verify your email with the OTP sent.",
+            email: email
+          };
+        }
+        
+        // If auto-verified (shouldn't happen with new signup)
+        if (data.token) {
+          setAuthData(data.token, data.user);
+          return { 
+            success: true, 
+            message: "Account created successfully!",
+            user: data.user
+          };
+        }
+        
+        throw new Error(data.message || 'Signup failed - unexpected response');
       } else {
         throw new Error(data.message || 'Signup failed');
       }
@@ -86,10 +133,81 @@ export const UserProvider = ({ children }) => {
     }
   };
 
+  // ========== VERIFY OTP ==========
+  const verifyOTP = async (email, otp) => {
+    setError(null);
+    setIsVerifying(true);
+    
+    try {
+      const response = await fetch(`${BASE_API}/api/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'OTP verification failed');
+      }
+      
+      if (data.success && data.token) {
+        setAuthData(data.token, data.user);
+        return { 
+          success: true, 
+          message: data.message || "Email verified successfully!",
+          user: data.user
+        };
+      } else {
+        throw new Error(data.message || 'OTP verification failed');
+      }
+      
+    } catch (error) {
+      console.error("OTP verification failed:", error);
+      setError(error.message);
+      return { success: false, error: error.message, remaining: error.remaining };
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  // ========== RESEND OTP ==========
+  const resendOTP = async (email) => {
+    setError(null);
+    setLoading(true);
+    
+    try {
+      const response = await fetch(`${BASE_API}/api/auth/resend-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to resend OTP');
+      }
+      
+      return { 
+        success: true, 
+        message: data.message || "New OTP sent to your email."
+      };
+      
+    } catch (error) {
+      console.error("Resend OTP failed:", error);
+      setError(error.message);
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ========== LOGIN ==========
   const login = async (email, password) => {
     setError(null);
     setLoading(true);
+    setRequiresVerification(false);
     
     try {
       const response = await fetch(`${BASE_API}/api/auth/login`, {
@@ -101,6 +219,18 @@ export const UserProvider = ({ children }) => {
       const data = await response.json();    
       
       if (!response.ok) {
+        // ✅ Check if it's a verification required error
+        if (response.status === 403 && data.requiresVerification) {
+          localStorage.setItem("verificationEmail", email);
+          setVerificationEmail(email);
+          setRequiresVerification(true);
+          return { 
+            success: false, 
+            requiresVerification: true,
+            message: data.message || "Please verify your email first.",
+            email: email
+          };
+        }
         throw new Error(data.message || 'Login failed');
       }
       
@@ -152,15 +282,6 @@ export const UserProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // ========== VERIFY OTP (Deprecated) ==========
-  const verifyOTP = async (email, otp) => {
-    return { success: true, message: "Email already verified" };
-  };
-
-  const resendOTP = async (email) => {
-    return { success: true, message: "No OTP needed. Email is auto-verified." };
   };
 
   // ========== COMPLETE PROFILE ==========
@@ -280,6 +401,8 @@ export const UserProvider = ({ children }) => {
     sessionStorage.clear();
     setUser(null);
     setIsAuthenticated(false);
+    setRequiresVerification(false);
+    setVerificationEmail(null);
     setError(null);
     return { success: true };
   }, []);
@@ -335,12 +458,11 @@ export const UserProvider = ({ children }) => {
     return localStorage.getItem("token");
   }, []);
 
-  const setAuthData = useCallback((token, userData) => {
-    localStorage.setItem("token", token);
-    localStorage.setItem("user", JSON.stringify(userData));
-    localStorage.setItem("isAuthenticated", "true");
-    setUser(userData);
-    setIsAuthenticated(true);
+  const clearVerificationState = useCallback(() => {
+    setRequiresVerification(false);
+    setVerificationEmail(null);
+    localStorage.removeItem("verificationEmail");
+    localStorage.removeItem("pendingUserName");
   }, []);
 
   const value = {
@@ -348,6 +470,9 @@ export const UserProvider = ({ children }) => {
     loading,
     error,
     isAuthenticated,
+    requiresVerification,
+    verificationEmail,
+    isVerifying,
     login,
     signup,
     googleLogin,
@@ -361,7 +486,8 @@ export const UserProvider = ({ children }) => {
     getDJApplicationStatus,
     getToken,
     setError,
-    clearAuthData
+    clearAuthData,
+    clearVerificationState
   };
 
   return (

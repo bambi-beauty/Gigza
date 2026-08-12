@@ -1,10 +1,18 @@
 // src/services/bookingService.js
-const API_BASE_URL = `${'https://gigza-testing-11.onrender.com'}/api`;
+const API_BASE_URL = 'https://gigza-testing-11.onrender.com/api';
 
 const getAuthToken = () => {
-    return localStorage.getItem('token');
+    const token = localStorage.getItem('token');
+    console.log('🔑 Token exists:', !!token);
+    if (token) {
+        console.log('🔑 Token preview:', token.substring(0, 30) + '...');
+    }
+    return token;
 };
 
+/**
+ * API call function with authentication for bookings
+ */
 const apiCall = async (endpoint, options = {}) => {
     const token = getAuthToken();
     
@@ -23,36 +31,57 @@ const apiCall = async (endpoint, options = {}) => {
     };
     
     try {
-        const url = `${API_BASE_URL}${endpoint}`;
+        const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+        const url = `${API_BASE_URL}${cleanEndpoint}`;
         console.log(`📡 Booking API Call: ${options.method || 'GET'} ${url}`);
+        console.log('📡 Headers:', { ...headers, Authorization: headers.Authorization ? 'Bearer [HIDDEN]' : undefined });
         
         const response = await fetch(url, config);
-        const data = await response.json();
+        
+        // Log raw response for debugging
+        const text = await response.text();
+        console.log('📡 Raw response:', text);
+        
+        let data;
+        try {
+            data = text ? JSON.parse(text) : {};
+        } catch (e) {
+            data = { message: text || 'Invalid response from server' };
+        }
         
         if (!response.ok) {
-            throw new Error(data.message || 'API call failed');
+            throw new Error(data.message || data.error || `Request failed with status ${response.status}`);
         }
         
         return data;
     } catch (error) {
-        console.error(`Booking API Error (${endpoint}):`, error);
+        console.error('❌ Booking API Error:', error);
         throw error;
     }
 };
 
-// ========== BOOKING SERVICES ==========
-
-// Get user's bookings
+/**
+ * Get user's bookings
+ * @returns {Promise} - List of bookings
+ */
 export const getUserBookings = async () => {
     return apiCall('/bookings');
 };
 
-// Get booking by ID
-export const getBookingById = async (bookingId) => {
+/**
+ * Get booking details by ID
+ * @param {number} bookingId - Booking ID
+ * @returns {Promise} - Booking details
+ */
+export const getBookingDetails = async (bookingId) => {
     return apiCall(`/bookings/${bookingId}`);
 };
 
-// Create a new booking
+/**
+ * Create a new booking
+ * @param {object} bookingData - Booking data
+ * @returns {Promise} - Created booking
+ */
 export const createBooking = async (bookingData) => {
     return apiCall('/bookings', {
         method: 'POST',
@@ -60,14 +89,23 @@ export const createBooking = async (bookingData) => {
     });
 };
 
-// Cancel a booking (using DELETE)
+/**
+ * Cancel a booking
+ * @param {number} bookingId - Booking ID
+ * @returns {Promise} - Cancellation confirmation
+ */
 export const cancelBooking = async (bookingId) => {
     return apiCall(`/bookings/${bookingId}`, {
         method: 'DELETE',
     });
 };
 
-// Update booking status (for DJs/admins)
+/**
+ * Update booking status (Admin only)
+ * @param {number} bookingId - Booking ID
+ * @param {string} status - New status (confirmed, cancelled, completed)
+ * @returns {Promise} - Updated booking
+ */
 export const updateBookingStatus = async (bookingId, status) => {
     return apiCall(`/bookings/${bookingId}/status`, {
         method: 'PATCH',
@@ -75,15 +113,13 @@ export const updateBookingStatus = async (bookingId, status) => {
     });
 };
 
-// Submit a review for a booking
-export const submitReview = async (bookingId, rating, reviewText) => {
-    return apiCall(`/bookings/${bookingId}/review`, {
-        method: 'POST',
-        body: JSON.stringify({ rating, review_text: reviewText }),
-    });
-};
-
-// Check DJ availability
+/**
+ * Check DJ availability
+ * @param {number} djId - DJ ID
+ * @param {string} eventDate - Event date (YYYY-MM-DD)
+ * @param {string} eventTime - Event time (HH:MM)
+ * @returns {Promise} - Availability check result
+ */
 export const checkDJAvailability = async (djId, eventDate, eventTime) => {
     return apiCall(`/bookings/check-availability/${djId}`, {
         method: 'POST',
@@ -91,8 +127,26 @@ export const checkDJAvailability = async (djId, eventDate, eventTime) => {
     });
 };
 
-// Get available DJs for a specific time
-export const getAvailableDJsForTime = async (eventDate, eventTime) => {
-    const queryParams = new URLSearchParams({ event_date: eventDate, event_time: eventTime });
-    return apiCall(`/djs/available?${queryParams}`);
+/**
+ * Submit a review for a booking
+ * @param {number} bookingId - Booking ID
+ * @param {number} rating - Rating (1-5)
+ * @param {string} reviewText - Review text
+ * @returns {Promise} - Submitted review
+ */
+export const submitReview = async (bookingId, rating, reviewText) => {
+    return apiCall(`/bookings/${bookingId}/review`, {
+        method: 'POST',
+        body: JSON.stringify({ rating, review_text: reviewText }),
+    });
+};
+
+export default {
+    getUserBookings,
+    getBookingDetails,
+    createBooking,
+    cancelBooking,
+    updateBookingStatus,
+    checkDJAvailability,
+    submitReview
 };

@@ -8,8 +8,9 @@ import {
   ArrowRight, Play, Pause, Volume2, Mic2, Disc, Radio,
   Waves, Share2, Bookmark, Eye
 } from "lucide-react";
-import { useUser } from "./UserContext/ThisUserContext";
-import { getAllDJs, getAvailableDJs, getVerifiedDJs } from "./services/djService";
+import { useUser } from "../../frontend/src/UserContext/ThisUserContext";
+import { getAllDJs, getAvailableDJs, getVerifiedDJs } from "../../frontend/src/services/djService";
+import { getUserBookings } from "../../frontend/src/services/bookingService";
 import { Bell, LayoutGrid, List } from "lucide-react";
 
 export function HomeScreen() {
@@ -32,6 +33,7 @@ export function HomeScreen() {
   const [hoveredDJ, setHoveredDJ] = useState(null);
   const [favorites, setFavorites] = useState([]);
   const [trendingDJs, setTrendingDJs] = useState([]);
+  const [bookingCount, setBookingCount] = useState(0);
   
   const searchInputRef = useRef(null);
   const BASE_API = 'https://gigza-testing-11.onrender.com/';
@@ -45,6 +47,26 @@ export function HomeScreen() {
     const num = safeNumber(rating, 0);
     return num.toFixed(1);
   };
+
+  // ✅ Fetch booking count
+  const fetchBookingCount = useCallback(async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+      
+      const data = await getUserBookings();
+      if (data && data.success && data.bookings) {
+        setBookingCount(data.bookings.length);
+      } else if (data && data.bookings) {
+        setBookingCount(data.bookings.length);
+      } else {
+        setBookingCount(0);
+      }
+    } catch (error) {
+      console.error("Error fetching booking count:", error);
+      setBookingCount(0);
+    }
+  }, [getToken]);
 
   const fetchDJs = useCallback(async () => {
     setLoading(true);
@@ -83,7 +105,8 @@ export function HomeScreen() {
 
   useEffect(() => {
     fetchDJs();
-  }, [fetchDJs]);
+    fetchBookingCount();
+  }, [fetchDJs, fetchBookingCount]);
 
   // Keyboard shortcut for search
   useEffect(() => {
@@ -294,7 +317,12 @@ export function HomeScreen() {
                         >
                           <Calendar className="w-4 h-4" />
                           <span>My Bookings</span>
-                          <span className="ml-auto text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">3</span>
+                          {/* ✅ Updated: Show actual booking count */}
+                          {bookingCount > 0 && (
+                            <span className="ml-auto text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">
+                              {bookingCount}
+                            </span>
+                          )}
                         </Link>
                         <Link
                           to="/emergency"
@@ -724,9 +752,12 @@ export function HomeScreen() {
                         <span className="text-white font-bold text-lg">R{price}</span>
                         <span className="text-zinc-500 text-xs"> / hour</span>
                       </div>
-                      <button className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-purple-500/25 transition">
+                      <Link
+                        to={`/book/${dj.id}`}
+                        className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:shadow-lg hover:shadow-purple-500/25 transition"
+                      >
                         Book Now
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -840,7 +871,7 @@ export function HomeScreen() {
         <MessageCircle className="w-6 h-6" />
       </button>
 
-      <style jsx>{`
+      <style>{`
         @keyframes gradient {
           0%, 100% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
@@ -874,5 +905,3 @@ export function HomeScreen() {
     </div>
   );
 }
-
-// Import missing icons

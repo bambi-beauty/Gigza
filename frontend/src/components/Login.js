@@ -1,3 +1,5 @@
+// components/Login.jsx
+
 import React, { useState, useEffect } from "react";
 import "./Login.css";
 import { FcGoogle } from "react-icons/fc";
@@ -9,7 +11,21 @@ import { auth, googleProvider } from "../firebase";
 import { useUser } from "../UserContext/ThisUserContext";
 
 function Login({ goToProfileSetup, goToHome }) {
-  const { login, signup, googleLogin, loading: authLoading, error: authError, setError } = useUser();
+  const { 
+    login, 
+    signup, 
+    googleLogin, 
+    verifyOTP,
+    resendOTP,
+    loading: authLoading, 
+    error: authError, 
+    setError,
+    requiresVerification,
+    verificationEmail,
+    isVerifying,
+    clearVerificationState
+  } = useUser();
+  
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     email: "",
@@ -17,10 +33,19 @@ function Login({ goToProfileSetup, goToHome }) {
     confirmPassword: "",
     name: ""
   });
+  const [otpData, setOtpData] = useState({
+    otp: "",
+    email: ""
+  });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const [otpSuccess, setOtpSuccess] = useState("");
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [otpAttempts, setOtpAttempts] = useState(0);
 
   // Floating particles background
   const [particles, setParticles] = useState([]);
@@ -39,6 +64,24 @@ function Login({ goToProfileSetup, goToHome }) {
     setParticles(particleArray);
   }, []);
 
+  // Check if verification is needed
+  useEffect(() => {
+    if (requiresVerification && verificationEmail) {
+      setOtpData(prev => ({ ...prev, email: verificationEmail }));
+      setShowOTPModal(true);
+    }
+  }, [requiresVerification, verificationEmail]);
+
+  // Resend countdown timer
+  useEffect(() => {
+    if (resendCountdown > 0) {
+      const timer = setTimeout(() => {
+        setResendCountdown(prev => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCountdown]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -46,6 +89,12 @@ function Login({ goToProfileSetup, goToHome }) {
       setErrors(prev => ({ ...prev, [name]: "" }));
     }
     if (authError) setError(null);
+  };
+
+  const handleOtpChange = (e) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setOtpData(prev => ({ ...prev, otp: value }));
+    setOtpError("");
   };
 
   const validateForm = () => {
@@ -66,8 +115,8 @@ function Login({ goToProfileSetup, goToHome }) {
       
       if (!formData.password) {
         newErrors.password = "Password is required";
-      } else if (formData.password.length < 6) {
-        newErrors.password = "Password must be at least 6 characters";
+      } else if (formData.password.length < 8) {
+        newErrors.password = "Password must be at least 8 characters";
       }
       
       if (formData.password !== formData.confirmPassword) {
@@ -83,22 +132,31 @@ function Login({ goToProfileSetup, goToHome }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle Signup - Creates account, auto-verified, goes to profile setup
+  // ========== HANDLE SIGNUP ==========
   const handleEmailSignup = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
     
     setIsLoading(true);
+    setOtpError("");
+    setOtpSuccess("");
     
     try {
       const result = await signup(formData.name, formData.email, formData.password);
       
       if (result.success) {
-        // Store user info for profile setup
-        localStorage.setItem("newUserEmail", formData.email);
-        localStorage.setItem("newUserName", formData.name);
-        // Go to profile setup screen
-        goToProfileSetup();
+        if (result.requiresVerification) {
+          // Show OTP modal
+          setOtpData(prev => ({ ...prev, email: result.email || formData.email }));
+          setShowOTPModal(true);
+          setOtpSuccess("We've sent a verification code to your email. Please check your inbox.");
+          setResendCountdown(60);
+        } else {
+          // Direct login (shouldn't happen with new signup)
+          localStorage.setItem("newUserEmail", formData.email);
+          localStorage.setItem("newUserName", formData.name);
+          goToProfileSetup();
+        }
       } else {
         setErrors({ submit: result.error || "Signup failed. Please try again." });
       }
@@ -110,18 +168,26 @@ function Login({ goToProfileSetup, goToHome }) {
     }
   };
 
-  // Handle Login - Gets token and goes to home
+  // ========== HANDLE LOGIN ==========
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
     
     setIsLoading(true);
+    setOtpError("");
+    setOtpSuccess("");
     
     try {
       const result = await login(formData.email, formData.password);
       
       if (result.success) {
         goToHome();
+      } else if (result.requiresVerification) {
+        // Show OTP modal for verification
+        setOtpData(prev => ({ ...prev, email: result.email || formData.email }));
+        setShowOTPModal(true);
+        setOtpSuccess("Please verify your email to continue. We've sent a code to your email.");
+        setResendCountdown(60);
       } else {
         setErrors({ submit: result.error || "Login failed. Please check your credentials." });
       }
@@ -133,7 +199,80 @@ function Login({ goToProfileSetup, goToHome }) {
     }
   };
 
-  // Handle Google Login
+  // ========== HANDLE OTP VERIFICATION ==========
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    
+    if (otpData.otp.length !== 6) {
+      setOtpError("Please enter a valid 6-digit OTP");
+      return;
+    }
+    
+    setIsLoading(true);
+    setOtpError("");
+    
+    try {
+      const result = await verifyOTP(otpData.email, otpData.otp);
+      
+      if (result.success) {
+        setOtpSuccess("Email verified successfully! 🎉");
+        setOtpAttempts(0);
+        
+        // Close modal after success
+        setTimeout(() => {
+          setShowOTPModal(false);
+          setOtpData({ otp: "", email: "" });
+          clearVerificationState();
+          
+          // Check if user was in signup flow or login flow
+          const pendingName = localStorage.getItem("pendingUserName");
+          if (pendingName) {
+            localStorage.setItem("newUserEmail", otpData.email);
+            localStorage.setItem("newUserName", pendingName);
+            goToProfileSetup();
+          } else {
+            goToHome();
+          }
+        }, 1500);
+      } else {
+        setOtpError(result.error || "Invalid OTP. Please try again.");
+        setOtpAttempts(prev => prev + 1);
+      }
+    } catch (error) {
+      console.error("OTP verification error:", error);
+      setOtpError(error.message || "OTP verification failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ========== HANDLE RESEND OTP ==========
+  const handleResendOTP = async () => {
+    if (resendCountdown > 0) return;
+    
+    setIsLoading(true);
+    setOtpError("");
+    setOtpSuccess("");
+    
+    try {
+      const result = await resendOTP(otpData.email);
+      
+      if (result.success) {
+        setOtpSuccess("New OTP sent to your email!");
+        setResendCountdown(60);
+        setOtpAttempts(0);
+      } else {
+        setOtpError(result.error || "Failed to resend OTP. Please try again.");
+      }
+    } catch (error) {
+      console.error("Resend OTP error:", error);
+      setOtpError("Failed to resend OTP. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ========== HANDLE GOOGLE LOGIN ==========
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     
@@ -155,7 +294,6 @@ function Login({ goToProfileSetup, goToHome }) {
       
       if (loginResult.success) {
         if (loginResult.user?.isNewUser) {
-          // New user - go to profile setup
           localStorage.setItem("newUserEmail", user.email);
           localStorage.setItem("newUserName", user.displayName);
           goToProfileSetup();
@@ -191,10 +329,14 @@ function Login({ goToProfileSetup, goToHome }) {
       confirmPassword: "",
       name: ""
     });
+    setOtpError("");
+    setOtpSuccess("");
     if (authError) setError(null);
+    clearVerificationState();
+    setShowOTPModal(false);
   };
 
-  const isLoadingState = isLoading || authLoading;
+  const isLoadingState = isLoading || authLoading || isVerifying;
 
   return (
     <div className="login-container">
@@ -416,6 +558,98 @@ function Login({ goToProfileSetup, goToHome }) {
           </div>
         </motion.div>
       </div>
+
+      {/* ============================================ */}
+      {/* OTP VERIFICATION MODAL */}
+      {/* ============================================ */}
+      <AnimatePresence>
+        {showOTPModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="otp-modal-overlay"
+            onClick={() => {}} // Don't close on overlay click
+          >
+            <motion.div
+              initial={{ scale: 0.8, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, y: 30 }}
+              className="otp-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="otp-modal-header">
+                <div className="otp-modal-icon">📧</div>
+                <h2>Verify Your Email</h2>
+                <p className="otp-modal-subtitle">
+                  We've sent a 6-digit verification code to <strong>{otpData.email}</strong>
+                </p>
+              </div>
+
+              <form onSubmit={handleVerifyOTP} className="otp-form">
+                <div className="otp-input-container">
+                  <input
+                    type="text"
+                    className="otp-input"
+                    placeholder="Enter 6-digit code"
+                    value={otpData.otp}
+                    onChange={handleOtpChange}
+                    maxLength={6}
+                    autoFocus
+                    disabled={isLoadingState}
+                  />
+                  <div className="otp-input-hint">
+                    {otpData.otp.length === 0 && "Enter the code sent to your email"}
+                    {otpData.otp.length > 0 && otpData.otp.length < 6 && `${otpData.otp.length}/6 digits`}
+                    {otpData.otp.length === 6 && "✅ Ready to verify"}
+                  </div>
+                </div>
+
+                {otpError && (
+                  <div className="otp-error">{otpError}</div>
+                )}
+
+                {otpSuccess && (
+                  <div className="otp-success">{otpSuccess}</div>
+                )}
+
+                <div className="otp-actions">
+                  <button
+                    type="submit"
+                    className="otp-verify-btn"
+                    disabled={isLoadingState || otpData.otp.length !== 6}
+                  >
+                    {isLoadingState ? (
+                      <div className="spinner-small"></div>
+                    ) : (
+                      "Verify Email"
+                    )}
+                  </button>
+                </div>
+
+                <div className="otp-resend">
+                  <span>Didn't receive the code? </span>
+                  <button
+                    type="button"
+                    onClick={handleResendOTP}
+                    disabled={isLoadingState || resendCountdown > 0}
+                    className={`otp-resend-btn ${resendCountdown > 0 ? 'disabled' : ''}`}
+                  >
+                    {resendCountdown > 0 ? `Resend in ${resendCountdown}s` : "Resend OTP"}
+                  </button>
+                </div>
+
+                <div className="otp-help">
+                  <p>💡 Check your spam folder if you don't see the email.</p>
+                  {otpAttempts >= 3 && (
+                    <p className="otp-warning">⚠️ Multiple failed attempts. Request a new code.</p>
+                  )}
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

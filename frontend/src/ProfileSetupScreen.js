@@ -21,7 +21,7 @@ export function ProfileSetupScreen({ onComplete, onSkip }) {
   
   const [currentStep, setCurrentStep] = useState(1);
 
-  const BASE_API = process.env.REACT_APP_API_URL || 'https://gigza-testing-11.onrender.com/api';
+  const BASE_API = 'https://gigza-testing-11.onrender.com/api';
 
   useEffect(() => {
     if (user) {
