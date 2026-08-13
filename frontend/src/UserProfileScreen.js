@@ -1,3 +1,4 @@
+/* GigZa User Profile — Full Backend Integration */
 import { useState, useEffect, useRef } from "react";
 import { 
   User, Settings, LogOut, Globe, Moon, Sun, Monitor, 
@@ -5,7 +6,7 @@ import {
   Music, Smartphone, Info, CheckCircle, X, Mail, Phone,
   MapPin, Calendar, Edit2, Shield, Bell, Lock, Heart,
   Star, Download, Languages, CreditCard, Trash2, Clock,
-  MessageCircle, Eye, Palette, Volume2, Headphones,
+  MessageCircle, Eye, Palette, Volume2, Headphones, HelpCircle,
   Instagram, Twitter, Share2, Link, Globe as GlobeIcon
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -51,6 +52,7 @@ export function UserProfileScreen() {
   const [settings, setSettings] = useState({
     language: "en",
     theme: "dark",
+    font_size: "medium",
     notifications: true,
     email_notifications: true,
     push_notifications: true,
@@ -67,12 +69,26 @@ export function UserProfileScreen() {
 
   const [tempSettings, setTempSettings] = useState({ ...settings });
 
+  // Extended Data States
+  const [favoriteDJs, setFavoriteDJs] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [addresses, setAddresses] = useState([]);
+  const [supportTickets, setSupportTickets] = useState([]);
+  const [devices, setDevices] = useState([]);
+  const [savedEvents, setSavedEvents] = useState([]);
+  const [blockedDJs, setBlockedDJs] = useState([]);
+  const [consents, setConsents] = useState([]);
+  const [searchHistory, setSearchHistory] = useState([]);
+  const [profileSummary, setProfileSummary] = useState(null);
+
   const BASE_API = 'https://gigza-testing-11.onrender.com/api';
 
   // ====== LIFECYCLE ======
   useEffect(() => {
     loadProfile();
     loadSettings();
+    loadExtendedData();
   }, []);
 
   useEffect(() => {
@@ -134,7 +150,7 @@ export function UserProfileScreen() {
       city: profileData.city || "",
       profile_picture: profileData.profile_picture || null,
       join_date: userData.created_at ? new Date(userData.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : "January 2024",
-      is_dj: userData.is_dj || false,
+      is_dj: userData.role_id === 2 || false,
       bio: profileData.bio || "",
       website: profileData.website || "",
       social_links: {
@@ -145,6 +161,97 @@ export function UserProfileScreen() {
     });
   };
 
+  // ====== LOAD EXTENDED DATA WITH BETTER ERROR HANDLING ======
+  const loadExtendedData = async () => {
+    try {
+      const token = getToken();
+      if (!token) {
+        console.log('⚠️ No token found, skipping extended data load');
+        return;
+      }
+
+      console.log('📡 Loading extended profile data...');
+
+      // Helper function to handle fetch with error catching
+      const safeFetch = async (url) => {
+        try {
+          const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (response.status === 403) {
+            console.warn(`⚠️ Access denied for ${url}:`, response.status);
+            return { ok: false, status: 403, data: null };
+          }
+          
+          if (response.status === 401) {
+            console.warn(`⚠️ Unauthorized for ${url}:`, response.status);
+            handleUnauthorized();
+            return { ok: false, status: 401, data: null };
+          }
+          
+          if (!response.ok) {
+            console.warn(`⚠️ Failed to load ${url}:`, response.status);
+            return { ok: false, status: response.status, data: null };
+          }
+          
+          const data = await response.json();
+          return { ok: true, data: data };
+        } catch (error) {
+          console.error(`❌ Error fetching ${url}:`, error);
+          return { ok: false, status: 0, data: null, error };
+        }
+      };
+
+      // Load all extended data in parallel with safeFetch
+      const [
+        favoritesResult,
+        bookingsResult,
+        paymentsResult,
+        addressesResult,
+        ticketsResult,
+        devicesResult,
+        eventsResult,
+        blockedResult,
+        consentsResult,
+        historyResult,
+        summaryResult
+      ] = await Promise.all([
+        safeFetch(`${BASE_API}/profile/favorites/djs`),
+        safeFetch(`${BASE_API}/profile/bookings`),
+        safeFetch(`${BASE_API}/profile/payments`),
+        safeFetch(`${BASE_API}/profile/addresses`),
+        safeFetch(`${BASE_API}/profile/tickets`),
+        safeFetch(`${BASE_API}/profile/devices`),
+        safeFetch(`${BASE_API}/profile/events/saved`),
+        safeFetch(`${BASE_API}/profile/blocked/djs`),
+        safeFetch(`${BASE_API}/profile/consents`),
+        safeFetch(`${BASE_API}/profile/search/history`),
+        safeFetch(`${BASE_API}/profile/profile/summary`)
+      ]);
+
+      // Process results with fallback to empty arrays
+      setFavoriteDJs(favoritesResult.ok ? favoritesResult.data.favorites || [] : []);
+      setBookings(bookingsResult.ok ? bookingsResult.data.bookings || [] : []);
+      setPaymentMethods(paymentsResult.ok ? paymentsResult.data.payment_methods || [] : []);
+      setAddresses(addressesResult.ok ? addressesResult.data.addresses || [] : []);
+      setSupportTickets(ticketsResult.ok ? ticketsResult.data.tickets || [] : []);
+      setDevices(devicesResult.ok ? devicesResult.data.devices || [] : []);
+      setSavedEvents(eventsResult.ok ? eventsResult.data.saved_events || [] : []);
+      setBlockedDJs(blockedResult.ok ? blockedResult.data.blocked_djs || [] : []);
+      setConsents(consentsResult.ok ? consentsResult.data.consents || [] : []);
+      setSearchHistory(historyResult.ok ? historyResult.data.search_history || [] : []);
+      setProfileSummary(summaryResult.ok ? summaryResult.data.summary || null : null);
+
+      console.log('✅ Extended profile data loaded');
+
+    } catch (error) {
+      console.error('❌ Error loading extended data:', error);
+      // Don't set error state - just log it
+    }
+  };
+
+  // ====== SETTINGS FUNCTIONS ======
   const loadSettings = async () => {
     try {
       const token = getToken();
@@ -213,6 +320,7 @@ export function UserProfileScreen() {
     }
   };
 
+  // ====== PROFILE UPDATE ======
   const updateProfile = async (updatedData) => {
     clearError();
     
@@ -249,6 +357,348 @@ export function UserProfileScreen() {
     } catch (err) {
       console.error("Error updating profile:", err);
       setError("Failed to update profile");
+      return false;
+    }
+  };
+
+  // ====== FAVORITE DJS FUNCTIONS ======
+  const addFavoriteDJ = async (djId) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/favorites/djs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ dj_id: djId })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFavoriteDJs(prev => [...prev, data.favorite]);
+        showSuccessMessage("DJ added to favorites!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error adding favorite DJ:", error);
+      setError("Failed to add favorite DJ");
+      return false;
+    }
+  };
+
+  const removeFavoriteDJ = async (djId) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/favorites/djs/${djId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
+      });
+
+      if (response.ok) {
+        setFavoriteDJs(prev => prev.filter(dj => dj.dj_id !== djId));
+        showSuccessMessage("DJ removed from favorites!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error removing favorite DJ:", error);
+      setError("Failed to remove favorite DJ");
+      return false;
+    }
+  };
+
+  // ====== BOOKING FUNCTIONS ======
+  const fetchBookings = async () => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/bookings`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setBookings(data.bookings || []);
+      }
+    } catch (error) {
+      console.error("Error fetching bookings:", error);
+    }
+  };
+
+  // ====== ADDRESS FUNCTIONS ======
+  const addAddress = async (addressData) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/addresses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(addressData)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAddresses(prev => [...prev, data.address]);
+        showSuccessMessage("Address added successfully!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error adding address:", error);
+      setError("Failed to add address");
+      return false;
+    }
+  };
+
+  const deleteAddress = async (addressId) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/addresses/${addressId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        setAddresses(prev => prev.filter(a => a.address_id !== addressId));
+        showSuccessMessage("Address deleted successfully!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error deleting address:", error);
+      setError("Failed to delete address");
+      return false;
+    }
+  };
+
+  // ====== SUPPORT TICKET FUNCTIONS ======
+  const createSupportTicket = async (ticketData) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/tickets`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(ticketData)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSupportTickets(prev => [data.ticket, ...prev]);
+        showSuccessMessage("Support ticket created!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error creating support ticket:", error);
+      setError("Failed to create support ticket");
+      return false;
+    }
+  };
+
+  // ====== DEVICE FUNCTIONS ======
+  const registerDevice = async (deviceData) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/devices`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(deviceData)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDevices(prev => [...prev, data.device]);
+        showSuccessMessage("Device registered!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error registering device:", error);
+      setError("Failed to register device");
+      return false;
+    }
+  };
+
+  const removeDevice = async (deviceId) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/devices/${deviceId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        setDevices(prev => prev.filter(d => d.device_id !== deviceId));
+        showSuccessMessage("Device removed!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error removing device:", error);
+      setError("Failed to remove device");
+      return false;
+    }
+  };
+
+  // ====== SAVED EVENTS FUNCTIONS ======
+  const saveEvent = async (eventData) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/events/saved`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(eventData)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSavedEvents(prev => [data.saved_event, ...prev]);
+        showSuccessMessage("Event saved!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error saving event:", error);
+      setError("Failed to save event");
+      return false;
+    }
+  };
+
+  const deleteSavedEvent = async (eventId) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/events/saved/${eventId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        setSavedEvents(prev => prev.filter(e => e.saved_event_id !== eventId));
+        showSuccessMessage("Event removed!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error deleting saved event:", error);
+      setError("Failed to delete saved event");
+      return false;
+    }
+  };
+
+  // ====== SEARCH HISTORY FUNCTIONS ======
+  const clearSearchHistory = async () => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/search/history`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        setSearchHistory([]);
+        showSuccessMessage("Search history cleared!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error clearing search history:", error);
+      setError("Failed to clear search history");
+      return false;
+    }
+  };
+
+  // ====== BLOCK DJ FUNCTIONS ======
+  const blockDJ = async (djId, reason = '') => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/blocked/djs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ dj_id: djId, reason })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBlockedDJs(prev => [...prev, data.block]);
+        showSuccessMessage("DJ blocked!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error blocking DJ:", error);
+      setError("Failed to block DJ");
+      return false;
+    }
+  };
+
+  const unblockDJ = async (djId) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/blocked/djs/${djId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        setBlockedDJs(prev => prev.filter(b => b.dj_id !== djId));
+        showSuccessMessage("DJ unblocked!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error unblocking DJ:", error);
+      setError("Failed to unblock DJ");
+      return false;
+    }
+  };
+
+  // ====== CONSENT FUNCTIONS ======
+  const updateConsent = async (consentType, consentGiven) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${BASE_API}/profile/consents`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ consent_type: consentType, consent_given: consentGiven })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setConsents(prev => {
+          const existing = prev.findIndex(c => c.consent_type === consentType);
+          if (existing >= 0) {
+            const newConsents = [...prev];
+            newConsents[existing] = data.consent;
+            return newConsents;
+          }
+          return [...prev, data.consent];
+        });
+        showSuccessMessage("Consent updated!");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error updating consent:", error);
+      setError("Failed to update consent");
       return false;
     }
   };
@@ -335,14 +785,14 @@ export function UserProfileScreen() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-zinc-800">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-white/[0.08]">
           <div className="sticky top-0 bg-zinc-900/95 backdrop-blur-xl border-b border-zinc-800 p-4 flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold text-white">User Information</h2>
               <p className="text-zinc-400 text-sm">Edit your profile details</p>
             </div>
-            <button onClick={closeModal} className="p-2 hover:bg-white/10 rounded-full transition">
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
               <X className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
@@ -429,13 +879,13 @@ export function UserProfileScreen() {
           <div className="sticky bottom-0 bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-800 p-4 flex gap-3">
             <button
               onClick={closeModal}
-              className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-700 text-white hover:bg-white/5 transition"
+              className="flex-1 px-4 py-3 rounded-2xl border border-white/10 text-zinc-200 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 transition-all duration-200"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-purple-500/30 transition"
+              className="flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-blue-500 text-white font-semibold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:-translate-y-0.5 transition-all duration-200"
             >
               Save Changes
             </button>
@@ -459,14 +909,14 @@ export function UserProfileScreen() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-zinc-800">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-white/[0.08]">
           <div className="sticky top-0 bg-zinc-900/95 backdrop-blur-xl border-b border-zinc-800 p-4 flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold text-white">System Settings</h2>
               <p className="text-zinc-400 text-sm">Configure your app preferences</p>
             </div>
-            <button onClick={closeModal} className="p-2 hover:bg-white/10 rounded-full transition">
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
               <X className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
@@ -488,6 +938,7 @@ export function UserProfileScreen() {
                 <option value="Asia/Dubai">Dubai</option>
                 <option value="Asia/Tokyo">Tokyo</option>
                 <option value="Australia/Sydney">Sydney</option>
+                <option value="Africa/Johannesburg">Johannesburg</option>
               </select>
             </div>
 
@@ -595,14 +1046,14 @@ export function UserProfileScreen() {
           <div className="sticky bottom-0 bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-800 p-4 flex gap-3">
             <button
               onClick={closeModal}
-              className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-700 text-white hover:bg-white/5 transition"
+              className="flex-1 px-4 py-3 rounded-2xl border border-white/10 text-zinc-200 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 transition-all duration-200"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={settingsSaving}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-purple-500/30 transition disabled:opacity-50"
+              className="flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-blue-500 text-white font-semibold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50"
             >
               {settingsSaving ? 'Saving...' : 'Save Settings'}
             </button>
@@ -626,7 +1077,9 @@ export function UserProfileScreen() {
       { code: 'pt', name: 'Portuguese', flag: '🇵🇹', native: 'Português' },
       { code: 'it', name: 'Italian', flag: '🇮🇹', native: 'Italiano' },
       { code: 'ru', name: 'Russian', flag: '🇷🇺', native: 'Русский' },
-      { code: 'hi', name: 'Hindi', flag: '🇮🇳', native: 'हिन्दी' }
+      { code: 'hi', name: 'Hindi', flag: '🇮🇳', native: 'हिन्दी' },
+      { code: 'af', name: 'Afrikaans', flag: '🇿🇦', native: 'Afrikaans' },
+      { code: 'zu', name: 'Zulu', flag: '🇿🇦', native: 'isiZulu' }
     ];
 
     const handleSelect = async (code) => {
@@ -635,14 +1088,14 @@ export function UserProfileScreen() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-md border border-zinc-800">
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-950/95 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl shadow-black/50 ring-1 ring-white/5 backdrop-blur-2xl overflow-hidden">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
             <div>
               <h2 className="text-xl font-bold text-white">Select Language</h2>
               <p className="text-zinc-400 text-sm">Choose your preferred language</p>
             </div>
-            <button onClick={closeModal} className="p-2 hover:bg-white/10 rounded-full transition">
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
               <X className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
@@ -651,7 +1104,7 @@ export function UserProfileScreen() {
               <button
                 key={lang.code}
                 onClick={() => handleSelect(lang.code)}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
+                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 ${
                   settings.language === lang.code 
                     ? 'bg-purple-500/20 border border-purple-500' 
                     : 'hover:bg-white/5'
@@ -687,14 +1140,14 @@ export function UserProfileScreen() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-md border border-zinc-800">
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-950/95 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl shadow-black/50 ring-1 ring-white/5 backdrop-blur-2xl overflow-hidden">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
             <div>
               <h2 className="text-xl font-bold text-white">Choose Theme</h2>
               <p className="text-zinc-400 text-sm">Customize your app appearance</p>
             </div>
-            <button onClick={closeModal} className="p-2 hover:bg-white/10 rounded-full transition">
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
               <X className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
@@ -709,8 +1162,8 @@ export function UserProfileScreen() {
                     : 'border-zinc-700 hover:border-zinc-600 hover:bg-white/5'
                 }`}
               >
-                <div className={`p-3 rounded-xl transition-all ${
-                  settings.theme === theme.id ? 'bg-purple-500/30' : 'bg-zinc-800'
+                <div className={`p-3 rounded-2xl transition-all duration-200 ${
+                  settings.theme === theme.id ? 'bg-purple-500/30' : 'bg-white/[0.06] border border-white/[0.06]'
                 }`}>
                   <div className={settings.theme === theme.id ? 'text-purple-400' : 'text-zinc-400'}>
                     {theme.icon}
@@ -752,20 +1205,20 @@ export function UserProfileScreen() {
     ];
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-md border border-zinc-800">
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-950/95 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl shadow-black/50 ring-1 ring-white/5 backdrop-blur-2xl overflow-hidden">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
             <div>
               <h2 className="text-xl font-bold text-white">Notifications</h2>
               <p className="text-zinc-400 text-sm">Manage your notification preferences</p>
             </div>
-            <button onClick={closeModal} className="p-2 hover:bg-white/10 rounded-full transition">
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
               <X className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
           <div className="p-4 space-y-4">
             {notificationTypes.map(({ key, icon: Icon, label, description }) => (
-              <div key={key} className="p-4 bg-black/30 rounded-xl border border-zinc-800">
+              <div key={key} className="p-4 bg-white/[0.035] rounded-2xl border border-white/[0.07] shadow-inner shadow-white/[0.02]">
                 <label className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-purple-500/10 rounded-lg">
@@ -790,16 +1243,16 @@ export function UserProfileScreen() {
               </div>
             ))}
           </div>
-          <div className="p-4 border-t border-zinc-800 flex gap-3">
+          <div className="p-4 border-t border-white/10 flex gap-3 bg-white/[0.02]">
             <button
               onClick={closeModal}
-              className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-700 text-white hover:bg-white/5 transition"
+              className="flex-1 px-4 py-3 rounded-2xl border border-white/10 text-zinc-200 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 transition-all duration-200"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-purple-500/30 transition"
+              className="flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-blue-500 text-white font-semibold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:-translate-y-0.5 transition-all duration-200"
             >
               Save
             </button>
@@ -825,14 +1278,14 @@ export function UserProfileScreen() {
     ];
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-md border border-zinc-800">
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-950/95 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl shadow-black/50 ring-1 ring-white/5 backdrop-blur-2xl overflow-hidden">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
             <div>
               <h2 className="text-xl font-bold text-white">Privacy Settings</h2>
               <p className="text-zinc-400 text-sm">Control your privacy preferences</p>
             </div>
-            <button onClick={closeModal} className="p-2 hover:bg-white/10 rounded-full transition">
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
               <X className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
@@ -893,11 +1346,11 @@ export function UserProfileScreen() {
               </label>
             </div>
           </div>
-          <div className="p-4 border-t border-zinc-800 flex gap-3">
-            <button onClick={closeModal} className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-700 text-white hover:bg-white/5 transition">
+          <div className="p-4 border-t border-white/10 flex gap-3 bg-white/[0.02]">
+            <button onClick={closeModal} className="flex-1 px-4 py-3 rounded-2xl border border-white/10 text-zinc-200 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 transition-all duration-200">
               Cancel
             </button>
-            <button onClick={handleSave} className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-purple-500/30 transition">
+            <button onClick={handleSave} className="flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-blue-500 text-white font-semibold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:-translate-y-0.5 transition-all duration-200">
               Save
             </button>
           </div>
@@ -966,14 +1419,14 @@ export function UserProfileScreen() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-md border border-zinc-800">
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-950/95 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl shadow-black/50 ring-1 ring-white/5 backdrop-blur-2xl overflow-hidden">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
             <div>
               <h2 className="text-xl font-bold text-white">Two-Factor Authentication</h2>
               <p className="text-zinc-400 text-sm">Add extra security to your account</p>
             </div>
-            <button onClick={closeModal} className="p-2 hover:bg-white/10 rounded-full transition">
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
               <X className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
@@ -989,7 +1442,7 @@ export function UserProfileScreen() {
               <button
                 onClick={handleSetup}
                 disabled={isLoading}
-                className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-purple-500/30 transition disabled:opacity-50"
+                className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-blue-500 text-white font-semibold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50"
               >
                 {isLoading ? 'Setting up...' : 'Setup Two-Factor Auth'}
               </button>
@@ -1018,7 +1471,7 @@ export function UserProfileScreen() {
                 <button
                   onClick={handleVerify}
                   disabled={isLoading || code.length < 6}
-                  className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-purple-500/30 transition disabled:opacity-50"
+                  className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-blue-500 text-white font-semibold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50"
                 >
                   {isLoading ? 'Verifying...' : 'Verify Code'}
                 </button>
@@ -1032,47 +1485,47 @@ export function UserProfileScreen() {
 
   // 8. FAVORITES MODAL
   const FavoritesModal = () => {
-    const [favorites, setFavorites] = useState([
-      { id: 1, title: 'Summer Vibes Mix', artist: 'DJ Cool', duration: '3:45', plays: '12.5K' },
-      { id: 2, title: 'Midnight Beats', artist: 'DJ Shadow', duration: '4:20', plays: '8.7K' },
-      { id: 3, title: 'Sunset Grooves', artist: 'DJ Sunshine', duration: '5:10', plays: '15.2K' },
-    ]);
+    const [localFavorites, setLocalFavorites] = useState(favoriteDJs);
 
-    const handleRemoveFavorite = (id) => {
-      setFavorites(favorites.filter(f => f.id !== id));
-      showSuccessMessage("Removed from favorites!");
+    const handleRemove = async (djId) => {
+      const success = await removeFavoriteDJ(djId);
+      if (success) {
+        setLocalFavorites(prev => prev.filter(f => f.dj_id !== djId));
+      }
     };
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] border border-zinc-800">
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] border border-white/[0.08]">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
             <div>
-              <h2 className="text-xl font-bold text-white">Favorites</h2>
-              <p className="text-zinc-400 text-sm">Your saved tracks and mixes</p>
+              <h2 className="text-xl font-bold text-white">Favorite DJs</h2>
+              <p className="text-zinc-400 text-sm">Your saved DJs</p>
             </div>
-            <button onClick={closeModal} className="p-2 hover:bg-white/10 rounded-full transition">
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
               <X className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
           <div className="p-2 overflow-y-auto max-h-96">
-            {favorites.length > 0 ? (
-              favorites.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 p-3 hover:bg-white/5 rounded-xl transition group">
+            {localFavorites.length > 0 ? (
+              localFavorites.map((dj) => (
+                <div key={dj.dj_id} className="flex items-center gap-3 p-3 hover:bg-white/[0.06] rounded-2xl transition-all duration-200 group border border-transparent hover:border-white/[0.06]">
                   <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
                     <Music className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium truncate">{item.title}</p>
-                    <p className="text-zinc-400 text-xs">{item.artist}</p>
+                    <p className="text-white text-sm font-medium truncate">{dj.dj_name}</p>
+                    <p className="text-zinc-400 text-xs">{dj.primary_genre || 'DJ'}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-zinc-500 text-xs">{item.duration}</span>
-                      <span className="text-zinc-600 text-xs">•</span>
-                      <span className="text-zinc-500 text-xs">{item.plays} plays</span>
+                      <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                      <span className="text-zinc-500 text-xs">{dj.rating || 0}</span>
+                      {dj.is_verified && (
+                        <span className="text-blue-400 text-xs">✓ Verified</span>
+                      )}
                     </div>
                   </div>
                   <button
-                    onClick={() => handleRemoveFavorite(item.id)}
+                    onClick={() => handleRemove(dj.dj_id)}
                     className="p-2 hover:bg-red-500/20 rounded-lg transition opacity-0 group-hover:opacity-100"
                   >
                     <X className="w-4 h-4 text-red-400" />
@@ -1082,8 +1535,8 @@ export function UserProfileScreen() {
             ) : (
               <div className="text-center py-8">
                 <Heart className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
-                <p className="text-zinc-400">No favorites yet</p>
-                <p className="text-zinc-600 text-xs">Start saving your favorite tracks</p>
+                <p className="text-zinc-400">No favorite DJs yet</p>
+                <p className="text-zinc-600 text-xs">Start saving your favorite DJs</p>
               </div>
             )}
           </div>
@@ -1101,14 +1554,14 @@ export function UserProfileScreen() {
     ]);
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] border border-zinc-800">
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] border border-white/[0.08]">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
             <div>
               <h2 className="text-xl font-bold text-white">Downloads</h2>
               <p className="text-zinc-400 text-sm">Your downloaded content</p>
             </div>
-            <button onClick={closeModal} className="p-2 hover:bg-white/10 rounded-full transition">
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
               <X className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
@@ -1151,7 +1604,277 @@ export function UserProfileScreen() {
     );
   };
 
-  // 10. DJ APPLICATION MODAL
+  // 10. MY BOOKINGS MODAL
+  const MyBookingsModal = () => {
+    const [localBookings, setLocalBookings] = useState(bookings);
+
+    return (
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-white/[0.08]">
+          <div className="sticky top-0 bg-zinc-900/95 backdrop-blur-xl border-b border-zinc-800 p-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white">My Bookings</h2>
+              <p className="text-zinc-400 text-sm">Manage your DJ bookings</p>
+            </div>
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
+              <X className="w-5 h-5 text-zinc-400" />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-3">
+            {localBookings.length > 0 ? localBookings.map((booking) => (
+              <div key={booking.booking_id} className="p-4 bg-black/30 rounded-2xl border border-white/[0.08]">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-white font-semibold">{booking.dj_name || 'DJ'}</p>
+                    <p className="text-zinc-500 text-xs mt-1">{booking.event_type || 'DJ Booking'}</p>
+                  </div>
+                  <span className={`text-xs px-2.5 py-1 rounded-full ${
+                    booking.booking_status === 'confirmed'
+                      ? 'bg-green-500/15 text-green-400'
+                      : booking.booking_status === 'completed'
+                      ? 'bg-blue-500/15 text-blue-400'
+                      : booking.booking_status === 'cancelled'
+                      ? 'bg-red-500/15 text-red-400'
+                      : 'bg-purple-500/15 text-purple-400'
+                  }`}>
+                    {booking.booking_status || 'Pending'}
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-2 text-sm">
+                  <div className="flex items-center gap-2 text-zinc-400">
+                    <Calendar className="w-4 h-4 text-purple-400" />
+                    {booking.event_date ? new Date(booking.event_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'Date TBD'}
+                  </div>
+                  <div className="flex items-center gap-2 text-zinc-400">
+                    <Clock className="w-4 h-4 text-purple-400" />
+                    {booking.event_time || 'Time TBD'}
+                  </div>
+                  {booking.location && (
+                    <div className="flex items-center gap-2 text-zinc-400">
+                      <MapPin className="w-4 h-4 text-purple-400" />
+                      {booking.location}
+                    </div>
+                  )}
+                  {booking.total_price && (
+                    <div className="flex items-center gap-2 text-zinc-400">
+                      <CreditCard className="w-4 h-4 text-purple-400" />
+                      R{booking.total_price}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )) : (
+              <div className="text-center py-10">
+                <Calendar className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+                <p className="text-zinc-400">No bookings yet</p>
+                <p className="text-zinc-600 text-xs mt-1">Your upcoming bookings will appear here.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 11. FAVOURITE DJS MODAL
+  const FavouriteDJsModal = () => {
+    const [localFavorites, setLocalFavorites] = useState(favoriteDJs);
+
+    return (
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-white/[0.08]">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+            <div>
+              <h2 className="text-xl font-bold text-white">Favourite DJs</h2>
+              <p className="text-zinc-400 text-sm">DJs you've saved for later</p>
+            </div>
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
+              <X className="w-5 h-5 text-zinc-400" />
+            </button>
+          </div>
+
+          <div className="p-2">
+            {localFavorites.length > 0 ? localFavorites.map((dj) => (
+              <div key={dj.dj_id} className="flex items-center gap-3 p-3 hover:bg-white/5 rounded-xl transition">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
+                  <Music className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-medium">{dj.dj_name}</p>
+                  <p className="text-zinc-500 text-xs mt-0.5">{dj.primary_genre || 'Various'}</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                    <span className="text-zinc-400 text-xs">{dj.rating || 0}</span>
+                  </div>
+                </div>
+                <Heart className="w-4 h-4 text-red-400 fill-red-400" />
+              </div>
+            )) : (
+              <div className="text-center py-10">
+                <Heart className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+                <p className="text-zinc-400">No favourite DJs yet</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 12. APPEARANCE MODAL
+  const AppearanceModal = () => {
+    const [localSettings, setLocalSettings] = useState({ ...tempSettings });
+
+    const saveAppearance = async () => {
+      setTempSettings(localSettings);
+      await saveSettings();
+    };
+
+    const themes = [
+      { id: 'dark', icon: <Moon className="w-6 h-6" />, label: 'Dark', description: 'Easy on the eyes' },
+      { id: 'light', icon: <Sun className="w-6 h-6" />, label: 'Light', description: 'Bright and clean' },
+      { id: 'system', icon: <Monitor className="w-6 h-6" />, label: 'System', description: 'Follow your device' }
+    ];
+
+    const fontSizes = [
+      { id: 'small', label: 'Small' },
+      { id: 'medium', label: 'Medium' },
+      { id: 'large', label: 'Large' }
+    ];
+
+    return (
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-white/[0.08]">
+          <div className="sticky top-0 bg-zinc-900/95 backdrop-blur-xl border-b border-zinc-800 p-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white">Appearance</h2>
+              <p className="text-zinc-400 text-sm">Customize how Gigza looks</p>
+            </div>
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
+              <X className="w-5 h-5 text-zinc-400" />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-6">
+            <div>
+              <label className="text-zinc-400 text-sm block mb-3">Theme</label>
+              <div className="space-y-2">
+                {themes.map((theme) => (
+                  <button
+                    key={theme.id}
+                    onClick={() => setLocalSettings({ ...localSettings, theme: theme.id })}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                      localSettings.theme === theme.id
+                        ? 'border-purple-500 bg-purple-500/20'
+                        : 'border-zinc-700 hover:border-zinc-600'
+                    }`}
+                  >
+                    <div className="p-2 bg-white/[0.06] border border-white/[0.06] rounded-lg text-zinc-300">{theme.icon}</div>
+                    <div className="flex-1 text-left">
+                      <span className="text-white block text-sm font-medium">{theme.label}</span>
+                      <span className="text-zinc-500 text-xs">{theme.description}</span>
+                    </div>
+                    {localSettings.theme === theme.id && <CheckCircle className="w-5 h-5 text-purple-400" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-zinc-400 text-sm block mb-3">Font Size</label>
+              <div className="grid grid-cols-3 gap-2">
+                {fontSizes.map((font) => (
+                  <button
+                    key={font.id}
+                    onClick={() => setLocalSettings({ ...localSettings, font_size: font.id })}
+                    className={`p-3 rounded-xl border-2 transition-all ${
+                      (localSettings.font_size || 'medium') === font.id
+                        ? 'border-purple-500 bg-purple-500/20 text-white'
+                        : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                    }`}
+                  >
+                    <span className="text-sm">{font.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="sticky bottom-0 bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-800 p-4 flex gap-3">
+            <button onClick={closeModal} className="flex-1 px-4 py-3 rounded-2xl border border-white/10 text-zinc-200 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 transition-all duration-200">
+              Cancel
+            </button>
+            <button
+              onClick={saveAppearance}
+              disabled={settingsSaving}
+              className="flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-blue-500 text-white font-semibold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50"
+            >
+              {settingsSaving ? 'Saving...' : 'Save Appearance'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 13. HELP & SUPPORT MODAL
+  const HelpSupportModal = () => (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+      <div className="bg-zinc-950/95 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl shadow-black/50 ring-1 ring-white/5 backdrop-blur-2xl overflow-hidden">
+        <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+          <div>
+            <h2 className="text-xl font-bold text-white">Help & Support</h2>
+            <p className="text-zinc-400 text-sm">We're here to help</p>
+          </div>
+          <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
+            <X className="w-5 h-5 text-zinc-400" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <button
+            onClick={() => openModal('support-tickets')}
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-white/[0.08] hover:bg-white/5 transition"
+          >
+            <div className="p-2 bg-purple-500/20 rounded-lg"><HelpCircle className="w-5 h-5 text-purple-400" /></div>
+            <div className="flex-1 text-left">
+              <span className="text-white text-sm font-medium block">My Support Tickets</span>
+              <span className="text-zinc-500 text-xs">{supportTickets.filter(t => t.status === 'open').length} open tickets</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-zinc-600" />
+          </button>
+
+          <button
+            onClick={() => window.location.href = 'mailto:support@gigza.com'}
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-white/[0.08] hover:bg-white/5 transition"
+          >
+            <div className="p-2 bg-blue-500/20 rounded-lg"><MessageCircle className="w-5 h-5 text-blue-400" /></div>
+            <div className="flex-1 text-left">
+              <span className="text-white text-sm font-medium block">Contact Support</span>
+              <span className="text-zinc-500 text-xs">Get help from the Gigza team</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-zinc-600" />
+          </button>
+
+          <button
+            onClick={() => openModal('create-ticket')}
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-white/[0.08] hover:bg-white/5 transition"
+          >
+            <div className="p-2 bg-green-500/20 rounded-lg"><Edit2 className="w-5 h-5 text-green-400" /></div>
+            <div className="flex-1 text-left">
+              <span className="text-white text-sm font-medium block">Create New Ticket</span>
+              <span className="text-zinc-500 text-xs">Submit a new support request</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-zinc-600" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // 14. DJ APPLICATION MODAL
   const DJApplicationModal = () => {
     const [application, setApplication] = useState({
       experience: '',
@@ -1163,7 +1886,7 @@ export function UserProfileScreen() {
     });
 
     const [selectedGenres, setSelectedGenres] = useState([]);
-    const genres = ['House', 'Techno', 'Trance', 'Dubstep', 'Hip-Hop', 'R&B', 'Pop', 'Rock', 'Jazz', 'Classical'];
+    const genres = ['House', 'Techno', 'Trance', 'Dubstep', 'Hip-Hop', 'R&B', 'Pop', 'Rock', 'Jazz', 'Classical', 'Amapiano', 'Afro House', 'Gqom', 'Deep House'];
 
     const handleSubmit = async () => {
       try {
@@ -1196,14 +1919,14 @@ export function UserProfileScreen() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-zinc-800">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-900 rounded-3xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-white/[0.08]">
           <div className="sticky top-0 bg-zinc-900/95 backdrop-blur-xl border-b border-zinc-800 p-4 flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold text-white">DJ Application</h2>
               <p className="text-zinc-400 text-sm">Apply to become a DJ</p>
             </div>
-            <button onClick={closeModal} className="p-2 hover:bg-white/10 rounded-full transition">
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
               <X className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
@@ -1230,7 +1953,7 @@ export function UserProfileScreen() {
                     className={`px-3 py-1.5 rounded-full text-xs transition-all ${
                       selectedGenres.includes(genre) 
                         ? 'bg-purple-500 text-white' 
-                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                        : 'bg-white/[0.06] border border-white/[0.06] text-zinc-400 hover:bg-zinc-700'
                     }`}
                   >
                     {genre}
@@ -1276,13 +1999,13 @@ export function UserProfileScreen() {
           <div className="sticky bottom-0 bg-zinc-900/95 backdrop-blur-xl border-t border-zinc-800 p-4 flex gap-3">
             <button
               onClick={closeModal}
-              className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-700 text-white hover:bg-white/5 transition"
+              className="flex-1 px-4 py-3 rounded-2xl border border-white/10 text-zinc-200 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 transition-all duration-200"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-purple-500/30 transition"
+              className="flex-1 px-4 py-3 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-purple-500 to-blue-500 text-white font-semibold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:-translate-y-0.5 transition-all duration-200"
             >
               Submit Application
             </button>
@@ -1292,7 +2015,7 @@ export function UserProfileScreen() {
     );
   };
 
-  // 11. APP INFO MODAL
+  // 15. APP INFO MODAL
   const AppInfoModal = () => {
     const appInfo = {
       version: '2.3.0',
@@ -1313,14 +2036,14 @@ export function UserProfileScreen() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-md border border-zinc-800">
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-950/95 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl shadow-black/50 ring-1 ring-white/5 backdrop-blur-2xl overflow-hidden">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
             <div>
               <h2 className="text-xl font-bold text-white">App Info</h2>
               <p className="text-zinc-400 text-sm">About Gigza</p>
             </div>
-            <button onClick={closeModal} className="p-2 hover:bg-white/10 rounded-full transition">
+            <button onClick={closeModal} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
               <X className="w-5 h-5 text-zinc-400" />
             </button>
           </div>
@@ -1366,7 +2089,7 @@ export function UserProfileScreen() {
     );
   };
 
-  // 12. CLEAR CACHE CONFIRMATION MODAL
+  // 16. CLEAR CACHE CONFIRMATION MODAL
   const ClearCacheModal = () => {
     const [isClearing, setIsClearing] = useState(false);
 
@@ -1391,8 +2114,8 @@ export function UserProfileScreen() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-sm border border-zinc-800">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-950/95 rounded-[2rem] w-full max-w-sm border border-white/10 shadow-2xl shadow-black/50 ring-1 ring-white/5 backdrop-blur-2xl overflow-hidden">
           <div className="p-6 text-center">
             <div className="w-16 h-16 bg-red-500/20 rounded-full mx-auto mb-4 flex items-center justify-center">
               <Trash2 className="w-8 h-8 text-red-400" />
@@ -1404,14 +2127,14 @@ export function UserProfileScreen() {
             <div className="flex gap-3">
               <button
                 onClick={closeModal}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-700 text-white hover:bg-white/5 transition"
+                className="flex-1 px-4 py-3 rounded-2xl border border-white/10 text-zinc-200 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 transition-all duration-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleClear}
                 disabled={isClearing}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition disabled:opacity-50"
+                className="flex-1 px-4 py-3 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 transition disabled:opacity-50"
               >
                 {isClearing ? 'Clearing...' : 'Clear Cache'}
               </button>
@@ -1422,17 +2145,17 @@ export function UserProfileScreen() {
     );
   };
 
-  // 13. CLEAR HISTORY CONFIRMATION MODAL
+  // 17. CLEAR HISTORY CONFIRMATION MODAL
   const ClearHistoryModal = () => {
     const [isClearing, setIsClearing] = useState(false);
 
     const handleClear = async () => {
       setIsClearing(true);
       try {
-        localStorage.removeItem('searchHistory');
-        sessionStorage.removeItem('searchHistory');
-        showSuccessMessage("History cleared successfully!");
-        closeModal();
+        const success = await clearSearchHistory();
+        if (success) {
+          closeModal();
+        }
       } catch (err) {
         console.error(err);
         setError("Failed to clear history");
@@ -1442,8 +2165,8 @@ export function UserProfileScreen() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-sm border border-zinc-800">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-950/95 rounded-[2rem] w-full max-w-sm border border-white/10 shadow-2xl shadow-black/50 ring-1 ring-white/5 backdrop-blur-2xl overflow-hidden">
           <div className="p-6 text-center">
             <div className="w-16 h-16 bg-yellow-500/20 rounded-full mx-auto mb-4 flex items-center justify-center">
               <Clock className="w-8 h-8 text-yellow-400" />
@@ -1455,14 +2178,14 @@ export function UserProfileScreen() {
             <div className="flex gap-3">
               <button
                 onClick={closeModal}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-700 text-white hover:bg-white/5 transition"
+                className="flex-1 px-4 py-3 rounded-2xl border border-white/10 text-zinc-200 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 transition-all duration-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleClear}
                 disabled={isClearing}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-yellow-500 text-white font-semibold hover:bg-yellow-600 transition disabled:opacity-50"
+                className="flex-1 px-4 py-3 rounded-2xl bg-yellow-500 text-white font-semibold hover:bg-yellow-600 transition disabled:opacity-50"
               >
                 {isClearing ? 'Clearing...' : 'Clear History'}
               </button>
@@ -1473,7 +2196,7 @@ export function UserProfileScreen() {
     );
   };
 
-  // 14. LOGOUT CONFIRMATION MODAL
+  // 18. LOGOUT CONFIRMATION MODAL
   const LogoutModal = () => {
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -1500,8 +2223,8 @@ export function UserProfileScreen() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-        <div className="bg-zinc-900 rounded-3xl w-full max-w-sm border border-zinc-800">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-zinc-950/95 rounded-[2rem] w-full max-w-sm border border-white/10 shadow-2xl shadow-black/50 ring-1 ring-white/5 backdrop-blur-2xl overflow-hidden">
           <div className="p-6 text-center">
             <div className="w-16 h-16 bg-red-500/20 rounded-full mx-auto mb-4 flex items-center justify-center">
               <LogOut className="w-8 h-8 text-red-400" />
@@ -1513,14 +2236,14 @@ export function UserProfileScreen() {
             <div className="flex gap-3">
               <button
                 onClick={closeModal}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-700 text-white hover:bg-white/5 transition"
+                className="flex-1 px-4 py-3 rounded-2xl border border-white/10 text-zinc-200 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 transition-all duration-200"
               >
                 Stay
               </button>
               <button
                 onClick={handleLogoutConfirm}
                 disabled={isLoggingOut}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition disabled:opacity-50"
+                className="flex-1 px-4 py-3 rounded-2xl bg-red-500 text-white font-semibold hover:bg-red-600 transition disabled:opacity-50"
               >
                 {isLoggingOut ? 'Logging out...' : 'Log Out'}
               </button>
@@ -1543,8 +2266,13 @@ export function UserProfileScreen() {
     );
   }
 
+  // Calculate quick stats for display
+  const bookingCount = bookings.length;
+  const favoriteCount = favoriteDJs.length;
+  const memberYear = profile.join_date ? profile.join_date.split(' ').pop() : '2024';
+
   return (
-    <div className="min-h-screen bg-black text-white pb-24">
+    <div className="min-h-screen bg-[#050507] text-white pb-24 relative overflow-hidden">
       {/* ====== MODALS ====== */}
       {activeModal === 'user-info' && <UserInfoModal />}
       {activeModal === 'settings' && <SystemSettingsModal />}
@@ -1554,6 +2282,10 @@ export function UserProfileScreen() {
       {activeModal === 'privacy' && <PrivacyModal />}
       {activeModal === 'two-factor' && <TwoFactorModal />}
       {activeModal === 'favorites' && <FavoritesModal />}
+      {activeModal === 'bookings' && <MyBookingsModal />}
+      {activeModal === 'favourite-djs' && <FavouriteDJsModal />}
+      {activeModal === 'appearance' && <AppearanceModal />}
+      {activeModal === 'help-support' && <HelpSupportModal />}
       {activeModal === 'downloads' && <DownloadsModal />}
       {activeModal === 'dj-application' && <DJApplicationModal />}
       {activeModal === 'app-info' && <AppInfoModal />}
@@ -1578,8 +2310,10 @@ export function UserProfileScreen() {
       )}
 
       {/* ====== HEADER ====== */}
-      <div className="bg-gradient-to-br from-purple-600 via-purple-700 to-blue-800 px-6 pt-12 pb-8">
-        <h1 className="text-2xl font-bold mb-6">Profile</h1>
+      <div className="relative bg-gradient-to-br from-[#7c3aed] via-[#6d28d9] to-[#1d4ed8] px-6 pt-12 pb-9 overflow-hidden">
+        <div className="absolute -top-20 -right-20 w-56 h-56 bg-fuchsia-400/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 -left-20 w-48 h-48 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
+        <h1 className="relative text-2xl font-bold mb-6 tracking-tight">Profile</h1>
         
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -1615,163 +2349,77 @@ export function UserProfileScreen() {
           </div>
         </div>
 
-        {/* Quick Stats */}
+        {/* User Quick Stats - Dynamically from backend */}
         <div className="grid grid-cols-3 gap-3 mt-6">
           <div className="text-center">
-            <p className="text-2xl font-bold text-white">12</p>
-            <p className="text-purple-200/70 text-xs">Gigs</p>
+            <p className="text-2xl font-bold text-white">{bookingCount}</p>
+            <p className="text-purple-200/70 text-xs">Bookings</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-white">4.8</p>
-            <p className="text-purple-200/70 text-xs">Rating</p>
+            <p className="text-2xl font-bold text-white">{favoriteCount}</p>
+            <p className="text-purple-200/70 text-xs">Favourite DJs</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-white">245</p>
-            <p className="text-purple-200/70 text-xs">Followers</p>
+            <p className="text-2xl font-bold text-white">{memberYear}</p>
+            <p className="text-purple-200/70 text-xs">Member Since</p>
           </div>
         </div>
       </div>
 
       {/* ====== MAIN MENU ====== */}
-      <div className="max-w-4xl mx-auto px-4 mt-6 space-y-4">
+      <div className="relative max-w-4xl mx-auto px-4 mt-6 space-y-5">
         {/* Account Section */}
         <div>
-          <h3 className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-2 mb-2">Account</h3>
-          
-          <button 
+          <h3 className="text-zinc-500 text-[11px] font-semibold uppercase tracking-[0.18em] px-2 mb-2.5">Account</h3>
+
+          <button
             onClick={() => openModal('user-info')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
+            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/[0.06] rounded-2xl transition-all duration-200 group border border-transparent hover:border-white/[0.06]"
           >
-            <div className="p-2 bg-purple-500/20 rounded-xl">
+            <div className="p-2.5 bg-purple-500/10 rounded-xl ring-1 ring-purple-400/10">
               <User className="w-4 h-4 text-purple-400" />
             </div>
             <span className="flex-1 text-left text-sm">User Information</span>
-            <div className="text-zinc-500 text-xs truncate max-w-[120px]">
-              {profile.email}
-            </div>
             <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
           </button>
 
-          <button 
-            onClick={() => openModal('favorites')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
+          <button
+            onClick={() => openModal('bookings')}
+            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/[0.06] rounded-2xl transition-all duration-200 group border border-transparent hover:border-white/[0.06]"
           >
-            <div className="p-2 bg-red-500/20 rounded-xl">
+            <div className="p-2.5 bg-blue-500/10 rounded-xl ring-1 ring-blue-400/10">
+              <Calendar className="w-4 h-4 text-blue-400" />
+            </div>
+            <span className="flex-1 text-left text-sm">My Bookings</span>
+            <span className="text-zinc-500 text-xs">{bookingCount} total</span>
+            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
+          </button>
+
+          <button
+            onClick={() => openModal('favourite-djs')}
+            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/[0.06] rounded-2xl transition-all duration-200 group border border-transparent hover:border-white/[0.06]"
+          >
+            <div className="p-2.5 bg-red-500/10 rounded-xl ring-1 ring-red-400/10">
               <Heart className="w-4 h-4 text-red-400" />
             </div>
-            <span className="flex-1 text-left text-sm">Favorites</span>
-            <span className="text-zinc-500 text-xs">12 tracks</span>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
-          </button>
-
-          <button 
-            onClick={() => openModal('downloads')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
-          >
-            <div className="p-2 bg-blue-500/20 rounded-xl">
-              <Download className="w-4 h-4 text-blue-400" />
-            </div>
-            <span className="flex-1 text-left text-sm">Downloads</span>
-            <span className="text-zinc-500 text-xs">8 items</span>
+            <span className="flex-1 text-left text-sm">Favourite DJs</span>
+            <span className="text-zinc-500 text-xs">{favoriteCount} saved</span>
             <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
           </button>
         </div>
 
-        {/* Preferences Section */}
+        {/* DJ Section */}
         <div>
-          <h3 className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-2 mb-2">Preferences</h3>
-          
-          <button 
-            onClick={() => openModal('settings')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
-          >
-            <div className="p-2 bg-blue-500/20 rounded-xl">
-              <Settings className="w-4 h-4 text-blue-400" />
-            </div>
-            <span className="flex-1 text-left text-sm">System Settings</span>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
-          </button>
+          <h3 className="text-zinc-500 text-[11px] font-semibold uppercase tracking-[0.18em] px-2 mb-2.5">DJ</h3>
 
-          <button 
-            onClick={() => openModal('language')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
-          >
-            <div className="p-2 bg-green-500/20 rounded-xl">
-              <Globe className="w-4 h-4 text-green-400" />
-            </div>
-            <span className="flex-1 text-left text-sm">Language</span>
-            <span className="text-zinc-500 text-xs uppercase">{settings.language}</span>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
-          </button>
-
-          <button 
-            onClick={() => openModal('theme')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
-          >
-            <div className="p-2 bg-yellow-500/20 rounded-xl">
-              {settings.theme === 'dark' ? (
-                <Moon className="w-4 h-4 text-yellow-400" />
-              ) : settings.theme === 'light' ? (
-                <Sun className="w-4 h-4 text-yellow-400" />
-              ) : (
-                <Monitor className="w-4 h-4 text-yellow-400" />
-              )}
-            </div>
-            <span className="flex-1 text-left text-sm">Theme</span>
-            <span className="text-zinc-500 text-xs capitalize">{settings.theme}</span>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
-          </button>
-
-          <button 
-            onClick={() => openModal('notifications')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
-          >
-            <div className="p-2 bg-indigo-500/20 rounded-xl">
-              <Bell className="w-4 h-4 text-indigo-400" />
-            </div>
-            <span className="flex-1 text-left text-sm">Notifications</span>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
-          </button>
-
-          <button 
-            onClick={() => openModal('privacy')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
-          >
-            <div className="p-2 bg-purple-500/20 rounded-xl">
-              <Lock className="w-4 h-4 text-purple-400" />
-            </div>
-            <span className="flex-1 text-left text-sm">Privacy</span>
-            <span className="text-zinc-500 text-xs capitalize">{settings.privacy}</span>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
-          </button>
-
-          <button 
-            onClick={() => openModal('two-factor')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
-          >
-            <div className="p-2 bg-red-500/20 rounded-xl">
-              <Shield className="w-4 h-4 text-red-400" />
-            </div>
-            <span className="flex-1 text-left text-sm">Two-Factor Auth</span>
-            <span className={`text-xs ${settings.two_factor ? 'text-green-400' : 'text-zinc-500'}`}>
-              {settings.two_factor ? 'Enabled' : 'Disabled'}
-            </span>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
-          </button>
-        </div>
-
-        {/* App Section */}
-        <div>
-          <h3 className="text-zinc-500 text-xs font-semibold uppercase tracking-wider px-2 mb-2">App</h3>
-          
-          <button 
+          <button
             onClick={() => openModal('dj-application')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
+            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/[0.06] rounded-2xl transition-all duration-200 group border border-transparent hover:border-white/[0.06]"
           >
-            <div className="p-2 bg-pink-500/20 rounded-xl">
+            <div className="p-2.5 bg-pink-500/10 rounded-xl ring-1 ring-pink-400/10">
               <Music className="w-4 h-4 text-pink-400" />
             </div>
-            <span className="flex-1 text-left text-sm">DJ Application</span>
+            <span className="flex-1 text-left text-sm">Become a DJ</span>
             {profile.is_dj ? (
               <span className="text-green-400 text-xs font-medium">Active</span>
             ) : (
@@ -1779,38 +2427,82 @@ export function UserProfileScreen() {
             )}
             <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
           </button>
+        </div>
 
-          <button 
-            onClick={() => openModal('app-info')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
+        {/* Preferences Section */}
+        <div>
+          <h3 className="text-zinc-500 text-[11px] font-semibold uppercase tracking-[0.18em] px-2 mb-2.5">Preferences</h3>
+
+          <button
+            onClick={() => openModal('settings')}
+            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/[0.06] rounded-2xl transition-all duration-200 group border border-transparent hover:border-white/[0.06]"
           >
-            <div className="p-2 bg-indigo-500/20 rounded-xl">
+            <div className="p-2.5 bg-blue-500/10 rounded-xl ring-1 ring-blue-400/10">
+              <Settings className="w-4 h-4 text-blue-400" />
+            </div>
+            <span className="flex-1 text-left text-sm">Settings</span>
+            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
+          </button>
+
+          <button
+            onClick={() => openModal('notifications')}
+            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/[0.06] rounded-2xl transition-all duration-200 group border border-transparent hover:border-white/[0.06]"
+          >
+            <div className="p-2.5 bg-indigo-500/10 rounded-xl ring-1 ring-indigo-400/10">
+              <Bell className="w-4 h-4 text-indigo-400" />
+            </div>
+            <span className="flex-1 text-left text-sm">Notifications</span>
+            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
+          </button>
+
+          <button
+            onClick={() => openModal('appearance')}
+            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/[0.06] rounded-2xl transition-all duration-200 group border border-transparent hover:border-white/[0.06]"
+          >
+            <div className="p-2.5 bg-yellow-500/10 rounded-xl ring-1 ring-yellow-400/10">
+              <Palette className="w-4 h-4 text-yellow-400" />
+            </div>
+            <span className="flex-1 text-left text-sm">Appearance</span>
+            <span className="text-zinc-500 text-xs capitalize">{settings.theme}</span>
+            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
+          </button>
+
+          <button
+            onClick={() => openModal('privacy')}
+            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/[0.06] rounded-2xl transition-all duration-200 group border border-transparent hover:border-white/[0.06]"
+          >
+            <div className="p-2.5 bg-purple-500/10 rounded-xl ring-1 ring-purple-400/10">
+              <Lock className="w-4 h-4 text-purple-400" />
+            </div>
+            <span className="flex-1 text-left text-sm">Privacy & Security</span>
+            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
+          </button>
+        </div>
+
+        {/* Support Section */}
+        <div>
+          <h3 className="text-zinc-500 text-[11px] font-semibold uppercase tracking-[0.18em] px-2 mb-2.5">Support</h3>
+
+          <button
+            onClick={() => openModal('help-support')}
+            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/[0.06] rounded-2xl transition-all duration-200 group border border-transparent hover:border-white/[0.06]"
+          >
+            <div className="p-2.5 bg-green-500/10 rounded-xl ring-1 ring-green-400/10">
+              <HelpCircle className="w-4 h-4 text-green-400" />
+            </div>
+            <span className="flex-1 text-left text-sm">Help & Support</span>
+            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
+          </button>
+
+          <button
+            onClick={() => openModal('app-info')}
+            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/[0.06] rounded-2xl transition-all duration-200 group border border-transparent hover:border-white/[0.06]"
+          >
+            <div className="p-2.5 bg-indigo-500/10 rounded-xl ring-1 ring-indigo-400/10">
               <Info className="w-4 h-4 text-indigo-400" />
             </div>
-            <span className="flex-1 text-left text-sm">App Info</span>
+            <span className="flex-1 text-left text-sm">About Gigza</span>
             <span className="text-zinc-500 text-xs">v2.3.0</span>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
-          </button>
-
-          <button 
-            onClick={() => openModal('clear-cache')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
-          >
-            <div className="p-2 bg-orange-500/20 rounded-xl">
-              <Trash2 className="w-4 h-4 text-orange-400" />
-            </div>
-            <span className="flex-1 text-left text-sm">Clear Cache</span>
-            <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
-          </button>
-
-          <button 
-            onClick={() => openModal('clear-history')}
-            className="w-full flex items-center gap-4 py-3 px-2 hover:bg-white/5 rounded-xl transition group"
-          >
-            <div className="p-2 bg-pink-500/20 rounded-xl">
-              <Clock className="w-4 h-4 text-pink-400" />
-            </div>
-            <span className="flex-1 text-left text-sm">Clear History</span>
             <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition" />
           </button>
         </div>
@@ -1820,7 +2512,7 @@ export function UserProfileScreen() {
           onClick={() => openModal('logout')}
           className="w-full flex items-center gap-4 py-3 px-2 hover:bg-red-500/10 rounded-xl transition group mt-4 border-t border-zinc-800/50 pt-4"
         >
-          <div className="p-2 bg-red-500/20 rounded-xl">
+          <div className="p-2.5 bg-red-500/10 rounded-xl ring-1 ring-red-400/10">
             <LogOut className="w-4 h-4 text-red-400" />
           </div>
           <span className="flex-1 text-left text-sm text-red-400">Log Out</span>

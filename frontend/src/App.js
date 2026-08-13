@@ -11,7 +11,8 @@ import { BookingManagementScreen } from "./BookingManagementScreen";
 import { BookingFormScreen } from "./BookingFormScreen";
 import { DJProfileScreen } from "./DJProfileScreen";
 import { EarningsDashboardScreen } from "./EarningsDashboardScreen";
-import { EmergencyDJScreen } from "./EmergencyDJScreen";
+// ✅ FIXED: Changed from named import to default import
+import EmergencyDJScreen from './EmergencyDJScreen';
 import { NotificationsScreen } from "./NotificationsScreen";
 import { PaymentScreen } from "./PaymentScreen";
 import { RatingsReviewsScreen } from "./RatingsReviewsScreen";

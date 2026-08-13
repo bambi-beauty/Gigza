@@ -23,9 +23,16 @@ export const SocketProvider = ({ children }) => {
     const [trackedDJ, setTrackedDJ] = useState(null);
     const [djLocation, setDjLocation] = useState(null);
     
-    // ✅ NEW: Notification state
+    // Notification state
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    
+    // Emergency state
+    const [emergencyStatus, setEmergencyStatus] = useState('idle');
+    const [emergencyId, setEmergencyId] = useState(null);
+    const [foundDJ, setFoundDJ] = useState(null);
+    const [eta, setEta] = useState(null);
+    const [progress, setProgress] = useState(0);
     
     const searchTimeoutRef = useRef(null);
 
@@ -37,34 +44,39 @@ export const SocketProvider = ({ children }) => {
             return;
         }
 
-        const isProduction = process.env.NODE_ENV === 'production';
-        const socketUrl = isProduction 
-            ? 'https://gigza-testing-11.onrender.com'
-            : 'http://localhost:5000';
+        // ✅ CORRECT URL - Using Render deployment
+        const socketUrl = 'https://gigza-testing-11.onrender.com';
 
         console.log(`🔌 Connecting to WebSocket at: ${socketUrl}`);
-        console.log(`🔌 Environment: ${isProduction ? 'Production' : 'Development'}`);
         
         const newSocket = io(socketUrl, {
             auth: { token },
             transports: ['websocket', 'polling'],
             reconnection: true,
-            reconnectionAttempts: 5,
+            reconnectionAttempts: 10,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
-            timeout: 15000,
-            forceNew: true
+            timeout: 30000,
+            forceNew: true,
+            withCredentials: true
         });
 
-        // ✅ Socket event handlers
+        // ============================================
+        // SOCKET EVENT HANDLERS
+        // ============================================
+
+        // Connection events
         newSocket.on('connect', () => {
             console.log('✅ WebSocket connected');
             setIsConnected(true);
+            
+            if (user?.id || user?.userid) {
+                newSocket.emit('user:online', user.id || user.userid);
+            }
         });
 
         newSocket.on('connect_error', (error) => {
             console.error('⚠️ WebSocket connection error:', error.message);
-            console.log('📡 Will retry connection...');
             setIsConnected(false);
         });
 
@@ -82,34 +94,195 @@ export const SocketProvider = ({ children }) => {
             console.error('❌ WebSocket auth error:', data.message);
         });
 
-        // ✅ NEW: Handle booking notifications
-        newSocket.on('booking_notification', (data) => {
-            console.log('📬 Booking notification received:', data);
+        // ============================================
+        // USER EVENTS
+        // ============================================
+
+        newSocket.on('user:nearbyDJs', (data) => {
+            console.log('📡 Received nearby DJs:', data);
+            setIsSearching(false);
             
-            // Add to notifications list
-            const newNotification = {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+            
+            if (data.success && data.djs) {
+                setNearbyDJs(data.djs);
+            } else {
+                setNearbyDJs([]);
+            }
+        });
+
+        newSocket.on('dj:locationUpdate', (data) => {
+            console.log('📍 DJ location update:', data);
+            if (trackedDJ === data.djId) {
+                setDjLocation(data.location);
+            }
+        });
+
+        newSocket.on('dj:statusChanged', (data) => {
+            console.log('🔄 DJ status changed:', data);
+            setNearbyDJs(prev => prev.map(dj => 
+                dj.dj_id === data.djId 
+                    ? { ...dj, is_online: data.isOnline }
+                    : dj
+            ));
+        });
+
+        // ============================================
+        // EMERGENCY EVENTS
+        // ============================================
+
+        newSocket.on('emergency:accepted', (data) => {
+            console.log('🚨 Emergency accepted:', data);
+            setEmergencyStatus('accepted');
+            setFoundDJ(data.dj);
+            setEta(data.estimated_arrival || 15);
+            setProgress(20);
+            setEmergencyId(data.emergency_id);
+            
+            const notification = {
                 id: Date.now(),
-                title: data.title || 'Booking Update',
-                message: data.message || 'Your booking has been updated',
-                type: data.type || 'booking',
-                data: data.data || {},
+                title: 'DJ Accepted! 🎧',
+                message: `${data.dj.name} is on their way! ETA: ${data.estimated_arrival || 15} mins`,
+                type: 'emergency_accepted',
+                data: data,
                 timestamp: new Date().toISOString(),
                 read: false
             };
-            
-            setNotifications(prev => [newNotification, ...prev]);
+            setNotifications(prev => [notification, ...prev]);
             setUnreadCount(prev => prev + 1);
             
-            // Show browser notification if permission granted
             if (Notification.permission === 'granted') {
-                new Notification(data.title || 'Booking Update', {
-                    body: data.message || 'Your booking has been updated',
-                    icon: '/favicon.ico'
+                new Notification('DJ Accepted!', {
+                    body: `${data.dj.name} is on their way! ETA: ${data.estimated_arrival || 15} mins`,
+                    icon: '/dj-icon.png'
                 });
             }
         });
 
-        // ✅ NEW: Handle specific booking events
+        newSocket.on('emergency:searching', (data) => {
+            console.log('🔍 Searching for DJs:', data);
+            setEmergencyStatus('searching');
+            setEmergencyId(data.emergency_id);
+            
+            const notification = {
+                id: Date.now(),
+                title: 'Searching for DJs... 🔍',
+                message: `Looking for available DJs in your area. Found ${data.djs_found || 0} nearby.`,
+                type: 'emergency_searching',
+                data: data,
+                timestamp: new Date().toISOString(),
+                read: false
+            };
+            setNotifications(prev => [notification, ...prev]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        newSocket.on('emergency:completed', (data) => {
+            console.log('✅ Emergency completed:', data);
+            setEmergencyStatus('completed');
+            setProgress(100);
+            
+            const notification = {
+                id: Date.now(),
+                title: 'Emergency Completed! ✅',
+                message: 'Your emergency request has been completed successfully.',
+                type: 'emergency_completed',
+                data: data,
+                timestamp: new Date().toISOString(),
+                read: false
+            };
+            setNotifications(prev => [notification, ...prev]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        newSocket.on('emergency:timeout', (data) => {
+            console.log('⏰ Emergency timeout:', data);
+            setEmergencyStatus('idle');
+            setEmergencyId(null);
+            setFoundDJ(null);
+            
+            const notification = {
+                id: Date.now(),
+                title: 'No DJs Available ⏰',
+                message: 'No DJs responded to your emergency request. Please try again.',
+                type: 'emergency_timeout',
+                data: data,
+                timestamp: new Date().toISOString(),
+                read: false
+            };
+            setNotifications(prev => [notification, ...prev]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        newSocket.on('emergency:cancelled', (data) => {
+            console.log('❌ Emergency cancelled:', data);
+            setEmergencyStatus('idle');
+            setEmergencyId(null);
+            setFoundDJ(null);
+            setDjLocation(null);
+            setEta(null);
+            setProgress(0);
+            
+            const notification = {
+                id: Date.now(),
+                title: 'Emergency Cancelled ❌',
+                message: data.reason || 'Your emergency request has been cancelled.',
+                type: 'emergency_cancelled',
+                data: data,
+                timestamp: new Date().toISOString(),
+                read: false
+            };
+            setNotifications(prev => [notification, ...prev]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        newSocket.on('emergency:taken', (data) => {
+            console.log('🚨 Emergency taken by another DJ:', data);
+            setEmergencyStatus('idle');
+            setEmergencyId(null);
+            
+            const notification = {
+                id: Date.now(),
+                title: 'Emergency Taken 🎧',
+                message: 'Another DJ has accepted this emergency request.',
+                type: 'emergency_taken',
+                data: data,
+                timestamp: new Date().toISOString(),
+                read: false
+            };
+            setNotifications(prev => [notification, ...prev]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        newSocket.on('emergency:new_request', (data) => {
+            console.log('🚨 New emergency request:', data);
+            
+            const notification = {
+                id: Date.now(),
+                title: 'New Emergency Request! 🚨',
+                message: `Emergency DJ needed ${data.distance_km || 'nearby'} km away.`,
+                type: 'emergency_new_request',
+                data: data,
+                timestamp: new Date().toISOString(),
+                read: false
+            };
+            setNotifications(prev => [notification, ...prev]);
+            setUnreadCount(prev => prev + 1);
+            
+            if (Notification.permission === 'granted') {
+                new Notification('New Emergency Request!', {
+                    body: `DJ needed ${data.distance_km || 'nearby'} km away. Emergency rate: R${data.emergency_rate || 'custom'}`,
+                    icon: '/emergency-icon.png'
+                });
+            }
+        });
+
+        // ============================================
+        // BOOKING EVENTS
+        // ============================================
+
         newSocket.on('booking:created', (data) => {
             console.log('📬 Booking created:', data);
             const notification = {
@@ -170,7 +343,6 @@ export const SocketProvider = ({ children }) => {
             setUnreadCount(prev => prev + 1);
         });
 
-        // ✅ NEW: DJ booking request notification
         newSocket.on('dj:booking_request', (data) => {
             console.log('📬 DJ booking request:', data);
             const notification = {
@@ -186,40 +358,10 @@ export const SocketProvider = ({ children }) => {
             setUnreadCount(prev => prev + 1);
         });
 
-        // Keep existing handlers
-        newSocket.on('user:nearbyDJs', (data) => {
-            console.log('📡 Received nearby DJs:', data);
-            setIsSearching(false);
-            
-            if (searchTimeoutRef.current) {
-                clearTimeout(searchTimeoutRef.current);
-            }
-            
-            if (data.success && data.djs) {
-                setNearbyDJs(data.djs);
-            } else {
-                setNearbyDJs([]);
-            }
-        });
-
-        newSocket.on('dj:locationUpdate', (data) => {
-            console.log('📍 DJ location update:', data);
-            if (trackedDJ === data.djId) {
-                setDjLocation(data.location);
-            }
-        });
-
-        newSocket.on('dj:statusChanged', (data) => {
-            console.log('🔄 DJ status changed:', data);
-            setNearbyDJs(prev => prev.map(dj => 
-                dj.dj_id === data.djId 
-                    ? { ...dj, is_online: data.isOnline }
-                    : dj
-            ));
-        });
-
         newSocket.on('new_notification', (notification) => {
             console.log('📬 New notification via WebSocket:', notification);
+            setNotifications(prev => [notification, ...prev]);
+            setUnreadCount(prev => prev + 1);
         });
 
         newSocket.on('error', (error) => {
@@ -228,12 +370,10 @@ export const SocketProvider = ({ children }) => {
 
         setSocket(newSocket);
 
-        // Request notification permission
         if (Notification.permission === 'default') {
             Notification.requestPermission();
         }
 
-        // Cleanup
         return () => {
             if (searchTimeoutRef.current) {
                 clearTimeout(searchTimeoutRef.current);
@@ -245,19 +385,20 @@ export const SocketProvider = ({ children }) => {
         };
     }, [user, getToken]);
 
-    // ✅ NEW: Mark all notifications as read
+    // ============================================
+    // NOTIFICATION METHODS
+    // ============================================
+
     const markAllAsRead = () => {
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         setUnreadCount(0);
     };
 
-    // ✅ NEW: Clear all notifications
     const clearNotifications = () => {
         setNotifications([]);
         setUnreadCount(0);
     };
 
-    // ✅ NEW: Mark single notification as read
     const markAsRead = (id) => {
         setNotifications(prev => prev.map(n => 
             n.id === id ? { ...n, read: true } : n
@@ -265,7 +406,6 @@ export const SocketProvider = ({ children }) => {
         setUnreadCount(prev => Math.max(0, prev - 1));
     };
 
-    // ✅ NEW: Send booking notification
     const sendBookingNotification = (type, data) => {
         if (socket && isConnected) {
             socket.emit('booking:notification', { type, data });
@@ -274,7 +414,58 @@ export const SocketProvider = ({ children }) => {
         }
     };
 
-    // Keep existing functions
+    // ============================================
+    // EMERGENCY METHODS
+    // ============================================
+
+    const createEmergency = (data) => {
+        if (socket && isConnected) {
+            socket.emit('user:emergency', data);
+            setEmergencyStatus('searching');
+        } else {
+            console.error('❌ Socket not connected');
+        }
+    };
+
+    const cancelEmergency = (emergencyId) => {
+        if (socket && isConnected) {
+            socket.emit('user:cancel-emergency', { emergencyId });
+            setEmergencyStatus('idle');
+            setEmergencyId(null);
+            setFoundDJ(null);
+        } else {
+            console.error('❌ Socket not connected');
+        }
+    };
+
+    const acceptEmergency = (emergencyId) => {
+        if (socket && isConnected) {
+            socket.emit('dj:accept-emergency', { emergencyId });
+        } else {
+            console.error('❌ Socket not connected');
+        }
+    };
+
+    // ============================================
+    // DJ METHODS
+    // ============================================
+
+    const setDJOnline = (isOnline) => {
+        if (socket && isConnected) {
+            socket.emit('dj:toggleOnline', { isOnline });
+        }
+    };
+
+    const updateDJLocation = (latitude, longitude) => {
+        if (socket && isConnected) {
+            socket.emit('dj:updateLocation', { latitude, longitude });
+        }
+    };
+
+    // ============================================
+    // USER METHODS
+    // ============================================
+
     const searchNearbyDJs = (latitude, longitude, radius_km = 1.5) => {
         if (!socket || !isConnected) {
             console.error('❌ Socket not connected');
@@ -338,6 +529,10 @@ export const SocketProvider = ({ children }) => {
         socket.emit('user:requestRide', { djId, pickupLocation, eventDetails });
     };
 
+    // ============================================
+    // CONTEXT VALUE
+    // ============================================
+
     const value = {
         socket,
         isConnected,
@@ -345,12 +540,22 @@ export const SocketProvider = ({ children }) => {
         isSearching,
         trackedDJ,
         djLocation,
-        notifications,      // ✅ NEW
-        unreadCount,        // ✅ NEW
-        markAllAsRead,      // ✅ NEW
-        clearNotifications, // ✅ NEW
-        markAsRead,         // ✅ NEW
-        sendBookingNotification, // ✅ NEW
+        notifications,
+        unreadCount,
+        markAllAsRead,
+        clearNotifications,
+        markAsRead,
+        sendBookingNotification,
+        emergencyStatus,
+        emergencyId,
+        foundDJ,
+        eta,
+        progress,
+        createEmergency,
+        cancelEmergency,
+        acceptEmergency,
+        setDJOnline,
+        updateDJLocation,
         searchNearbyDJs,
         trackDJ,
         untrackDJ,
