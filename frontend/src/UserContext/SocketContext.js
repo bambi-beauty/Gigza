@@ -1,4 +1,5 @@
-// src/UserContext/SocketContext.js
+// UserContext/SocketContext.js
+// FIXED: WebSocket sends token in auth
 
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import io from 'socket.io-client';
@@ -15,19 +16,15 @@ export const useSocket = () => {
 };
 
 export const SocketProvider = ({ children }) => {
-    const { user, getToken } = useUser();
+    const { user, isAuthenticated, getToken } = useUser();
     const [socket, setSocket] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
     const [nearbyDJs, setNearbyDJs] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     const [trackedDJ, setTrackedDJ] = useState(null);
     const [djLocation, setDjLocation] = useState(null);
-    
-    // Notification state
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
-    
-    // Emergency state
     const [emergencyStatus, setEmergencyStatus] = useState('idle');
     const [emergencyId, setEmergencyId] = useState(null);
     const [foundDJ, setFoundDJ] = useState(null);
@@ -35,37 +32,40 @@ export const SocketProvider = ({ children }) => {
     const [progress, setProgress] = useState(0);
     
     const searchTimeoutRef = useRef(null);
+    const socketRef = useRef(null);
 
     useEffect(() => {
-        const token = getToken();
-        
-        if (!token || !user) {
-            console.log('🔌 No token or user, skipping socket connection');
+        if (!isAuthenticated || !user) {
+            console.log('🔌 User not authenticated, skipping socket connection');
             return;
         }
 
-        // ✅ CORRECT URL - Using Render deployment
+        // ✅ Get token from localStorage
+        const token = getToken();
+        
+        if (!token) {
+            console.log('🔌 No token found, skipping socket connection');
+            return;
+        }
+
+        console.log('🔌 Connecting to WebSocket with token authentication...');
+        
         const socketUrl = 'https://gigza-testing-11.onrender.com';
 
-        console.log(`🔌 Connecting to WebSocket at: ${socketUrl}`);
-        
+        // ✅ WebSocket sends token in auth
         const newSocket = io(socketUrl, {
-            auth: { token },
+            auth: { token: token },  // ✅ Send token for authentication
             transports: ['websocket', 'polling'],
             reconnection: true,
             reconnectionAttempts: 10,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
             timeout: 30000,
-            forceNew: true,
             withCredentials: true
         });
 
-        // ============================================
-        // SOCKET EVENT HANDLERS
-        // ============================================
+        socketRef.current = newSocket;
 
-        // Connection events
         newSocket.on('connect', () => {
             console.log('✅ WebSocket connected');
             setIsConnected(true);
@@ -78,6 +78,9 @@ export const SocketProvider = ({ children }) => {
         newSocket.on('connect_error', (error) => {
             console.error('⚠️ WebSocket connection error:', error.message);
             setIsConnected(false);
+            if (error.message === 'Authentication error') {
+                console.log('❌ Authentication failed - token may be invalid');
+            }
         });
 
         newSocket.on('disconnect', (reason) => {
@@ -144,7 +147,7 @@ export const SocketProvider = ({ children }) => {
             const notification = {
                 id: Date.now(),
                 title: 'DJ Accepted! 🎧',
-                message: `${data.dj.name} is on their way! ETA: ${data.estimated_arrival || 15} mins`,
+                message: `${data.dj?.name || 'DJ'} is on their way! ETA: ${data.estimated_arrival || 15} mins`,
                 type: 'emergency_accepted',
                 data: data,
                 timestamp: new Date().toISOString(),
@@ -152,13 +155,6 @@ export const SocketProvider = ({ children }) => {
             };
             setNotifications(prev => [notification, ...prev]);
             setUnreadCount(prev => prev + 1);
-            
-            if (Notification.permission === 'granted') {
-                new Notification('DJ Accepted!', {
-                    body: `${data.dj.name} is on their way! ETA: ${data.estimated_arrival || 15} mins`,
-                    icon: '/dj-icon.png'
-                });
-            }
         });
 
         newSocket.on('emergency:searching', (data) => {
@@ -270,13 +266,6 @@ export const SocketProvider = ({ children }) => {
             };
             setNotifications(prev => [notification, ...prev]);
             setUnreadCount(prev => prev + 1);
-            
-            if (Notification.permission === 'granted') {
-                new Notification('New Emergency Request!', {
-                    body: `DJ needed ${data.distance_km || 'nearby'} km away. Emergency rate: R${data.emergency_rate || 'custom'}`,
-                    icon: '/emergency-icon.png'
-                });
-            }
         });
 
         // ============================================
@@ -370,10 +359,6 @@ export const SocketProvider = ({ children }) => {
 
         setSocket(newSocket);
 
-        if (Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-
         return () => {
             if (searchTimeoutRef.current) {
                 clearTimeout(searchTimeoutRef.current);
@@ -383,10 +368,10 @@ export const SocketProvider = ({ children }) => {
                 console.log('🔌 WebSocket disconnected on cleanup');
             }
         };
-    }, [user, getToken]);
+    }, [user, isAuthenticated, getToken]);
 
     // ============================================
-    // NOTIFICATION METHODS
+    // METHODS
     // ============================================
 
     const markAllAsRead = () => {
@@ -413,10 +398,6 @@ export const SocketProvider = ({ children }) => {
             console.warn('⚠️ Socket not connected, notification not sent');
         }
     };
-
-    // ============================================
-    // EMERGENCY METHODS
-    // ============================================
 
     const createEmergency = (data) => {
         if (socket && isConnected) {
@@ -446,10 +427,6 @@ export const SocketProvider = ({ children }) => {
         }
     };
 
-    // ============================================
-    // DJ METHODS
-    // ============================================
-
     const setDJOnline = (isOnline) => {
         if (socket && isConnected) {
             socket.emit('dj:toggleOnline', { isOnline });
@@ -461,10 +438,6 @@ export const SocketProvider = ({ children }) => {
             socket.emit('dj:updateLocation', { latitude, longitude });
         }
     };
-
-    // ============================================
-    // USER METHODS
-    // ============================================
 
     const searchNearbyDJs = (latitude, longitude, radius_km = 1.5) => {
         if (!socket || !isConnected) {
@@ -528,10 +501,6 @@ export const SocketProvider = ({ children }) => {
         
         socket.emit('user:requestRide', { djId, pickupLocation, eventDetails });
     };
-
-    // ============================================
-    // CONTEXT VALUE
-    // ============================================
 
     const value = {
         socket,

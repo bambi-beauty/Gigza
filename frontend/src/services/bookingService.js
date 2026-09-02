@@ -1,5 +1,8 @@
 // src/services/bookingService.js
+
+// ✅ Use environment variable or fallback to localhost for development
 const API_BASE_URL = 'https://gigza-testing-11.onrender.com/api';
+// For production: const API_BASE_URL = 'https://gigza-testing-11.onrender.com/api';
 
 const getAuthToken = () => {
     const token = localStorage.getItem('token');
@@ -65,7 +68,8 @@ const apiCall = async (endpoint, options = {}) => {
  * @returns {Promise} - List of bookings
  */
 export const getUserBookings = async () => {
-    return apiCall('/bookings');
+    // ✅ Use the correct endpoint from your backend
+    return apiCall('/profile/bookings');
 };
 
 /**
@@ -74,7 +78,7 @@ export const getUserBookings = async () => {
  * @returns {Promise} - Booking details
  */
 export const getBookingDetails = async (bookingId) => {
-    return apiCall(`/bookings/${bookingId}`);
+    return apiCall(`/profile/bookings/${bookingId}`);
 };
 
 /**
@@ -83,7 +87,7 @@ export const getBookingDetails = async (bookingId) => {
  * @returns {Promise} - Created booking
  */
 export const createBooking = async (bookingData) => {
-    return apiCall('/bookings', {
+    return apiCall('/profile/bookings', {
         method: 'POST',
         body: JSON.stringify(bookingData),
     });
@@ -95,8 +99,9 @@ export const createBooking = async (bookingData) => {
  * @returns {Promise} - Cancellation confirmation
  */
 export const cancelBooking = async (bookingId) => {
-    return apiCall(`/bookings/${bookingId}`, {
-        method: 'DELETE',
+    return apiCall(`/profile/bookings/${bookingId}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'cancelled' }),
     });
 };
 
@@ -107,9 +112,9 @@ export const cancelBooking = async (bookingId) => {
  * @returns {Promise} - Updated booking
  */
 export const updateBookingStatus = async (bookingId, status) => {
-    return apiCall(`/bookings/${bookingId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ booking_status: status }),
+    return apiCall(`/profile/bookings/${bookingId}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
     });
 };
 
@@ -135,7 +140,7 @@ export const checkDJAvailability = async (djId, eventDate, eventTime) => {
  * @returns {Promise} - Submitted review
  */
 export const submitReview = async (bookingId, rating, reviewText) => {
-    return apiCall(`/bookings/${bookingId}/review`, {
+    return apiCall(`/profile/bookings/${bookingId}/review`, {
         method: 'POST',
         body: JSON.stringify({ rating, review_text: reviewText }),
     });

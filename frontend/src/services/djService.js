@@ -2,15 +2,11 @@
 const API_BASE_URL = 'https://gigza-testing-11.onrender.com/api';
 
 const getAuthToken = () => {
-    return localStorage.getItem('token');
+    return localStorage.getItem('token') || sessionStorage.getItem('token');
 };
 
 /**
  * API call function with optional authentication
- * @param {string} endpoint - API endpoint (e.g., '/djs')
- * @param {object} options - Fetch options (method, body, etc.)
- * @param {boolean} skipAuth - Set to true for public routes that don't need authentication
- * @returns {Promise} - API response
  */
 const apiCall = async (endpoint, options = {}, skipAuth = false) => {
     const headers = {
@@ -18,14 +14,12 @@ const apiCall = async (endpoint, options = {}, skipAuth = false) => {
         ...options.headers,
     };
     
-    // ✅ Always try to add token if it exists, unless explicitly skipped
     if (!skipAuth) {
         const token = getAuthToken();
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
     }
-    // If skipAuth is true, we completely skip the Authorization header
     
     const config = {
         ...options,
@@ -35,7 +29,7 @@ const apiCall = async (endpoint, options = {}, skipAuth = false) => {
     try {
         const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
         const url = `${API_BASE_URL}${cleanEndpoint}`;
-        console.log(`📡 API Call: ${options.method || 'GET'} ${url} ${skipAuth ? '(public - no auth)' : '(with auth if available)'}`);
+        console.log(`📡 API Call: ${options.method || 'GET'} ${url}`);
         
         const response = await fetch(url, config);
         
@@ -59,16 +53,9 @@ const apiCall = async (endpoint, options = {}, skipAuth = false) => {
 };
 
 // ============================================
-// DJ SERVICES (Require authentication based on backend)
+// DJ SERVICES - Named Exports
 // ============================================
 
-/**
- * Get all DJs - Sends token if available
- * @param {object} filters - Filter options
- * @param {boolean} filters.verified_only - Show only verified DJs
- * @param {boolean} filters.available_only - Show only available DJs
- * @returns {Promise} - List of DJs
- */
 export const getAllDJs = async (filters = {}) => {
     const { verified_only = false, available_only = false } = filters;
     const queryParams = new URLSearchParams();
@@ -79,76 +66,207 @@ export const getAllDJs = async (filters = {}) => {
     const queryString = queryParams.toString();
     const endpoint = `/djs${queryString ? `?${queryString}` : ''}`;
     
-    return apiCall(endpoint, {}, false); // ❌ Changed from true to false - sends token
+    try {
+        const data = await apiCall(endpoint, {}, false);
+        console.log('🔍 getAllDJs response:', data);
+        
+        let djs = [];
+        
+        if (data.djs && Array.isArray(data.djs)) {
+            djs = data.djs;
+        } else if (data.data && Array.isArray(data.data)) {
+            djs = data.data;
+        } else if (data.rows && Array.isArray(data.rows)) {
+            djs = data.rows;
+        } else if (Array.isArray(data)) {
+            djs = data;
+        } else if (data.dj_profile && Array.isArray(data.dj_profile)) {
+            djs = data.dj_profile;
+        } else if (data.djs_list && Array.isArray(data.djs_list)) {
+            djs = data.djs_list;
+        } else {
+            for (const key in data) {
+                if (Array.isArray(data[key]) && data[key].length > 0) {
+                    djs = data[key];
+                    break;
+                }
+            }
+        }
+        
+        console.log(`✅ Found ${djs.length} DJs`);
+        
+        const normalizedDJs = djs.map(dj => ({
+            id: dj.dj_id || dj.id,
+            dj_id: dj.dj_id || dj.id,
+            userid: dj.userid,
+            name: dj.dj_name || dj.name || 'DJ',
+            dj_name: dj.dj_name || dj.name || 'DJ',
+            experience: dj.dj_experience || dj.experience || '',
+            skills: dj.dj_skills || dj.skills || '',
+            genre: dj.primary_genre || dj.genre || 'Electronic',
+            primary_genre: dj.primary_genre || dj.genre || 'Electronic',
+            price: dj.price_per_hour || dj.price || 150,
+            price_per_hour: dj.price_per_hour || dj.price || 150,
+            latitude: dj.latitude,
+            longitude: dj.longitude,
+            verified: dj.is_verified || false,
+            is_verified: dj.is_verified || false,
+            is_online: dj.is_online || false,
+            online: dj.is_online || false,
+            rating: parseFloat(dj.rating) || 0,
+            review_count: dj.total_reviews || 0,
+            total_reviews: dj.total_reviews || 0,
+            image: dj.profile_image || dj.image || `/api/placeholder/150/150`,
+            profile_image: dj.profile_image || dj.image || `/api/placeholder/150/150`,
+            created_at: dj.created_at,
+            updated_at: dj.updated_at,
+            ...dj
+        }));
+        
+        return {
+            success: true,
+            djs: normalizedDJs,
+            total: normalizedDJs.length,
+            raw: data
+        };
+        
+    } catch (error) {
+        console.error('❌ Error fetching DJs:', error);
+        throw error;
+    }
 };
 
-/**
- * Get available DJs right now - Sends token if available
- * @returns {Promise} - List of available DJs
- */
 export const getAvailableDJs = async () => {
-    return apiCall('/djs/available', {}, false); // ❌ Changed from true to false
+    try {
+        const data = await apiCall('/djs/available', {}, false);
+        console.log('🔍 getAvailableDJs response:', data);
+        
+        let djs = [];
+        if (data.available_djs && Array.isArray(data.available_djs)) {
+            djs = data.available_djs;
+        } else if (data.djs && Array.isArray(data.djs)) {
+            djs = data.djs;
+        } else if (data.data && Array.isArray(data.data)) {
+            djs = data.data;
+        } else if (Array.isArray(data)) {
+            djs = data;
+        }
+        
+        return {
+            success: true,
+            available_djs: djs,
+            total: djs.length
+        };
+    } catch (error) {
+        console.error('❌ Error fetching available DJs:', error);
+        throw error;
+    }
 };
 
-/**
- * Get verified DJs only - Sends token if available
- * @returns {Promise} - List of verified DJs
- */
 export const getVerifiedDJs = async () => {
-    return apiCall('/djs/verified', {}, false); // ❌ Changed from true to false
+    try {
+        const data = await apiCall('/djs/verified', {}, false);
+        console.log('🔍 getVerifiedDJs response:', data);
+        
+        let djs = [];
+        if (data.verified_djs && Array.isArray(data.verified_djs)) {
+            djs = data.verified_djs;
+        } else if (data.djs && Array.isArray(data.djs)) {
+            djs = data.djs;
+        } else if (data.data && Array.isArray(data.data)) {
+            djs = data.data;
+        } else if (Array.isArray(data)) {
+            djs = data;
+        }
+        
+        return {
+            success: true,
+            verified_djs: djs,
+            total: djs.length
+        };
+    } catch (error) {
+        console.error('❌ Error fetching verified DJs:', error);
+        throw error;
+    }
 };
 
-/**
- * Get DJ by ID - Sends token if available
- * @param {number|string} djId - DJ ID
- * @returns {Promise} - DJ profile
- */
 export const getDJById = async (djId) => {
-    return apiCall(`/djs/${djId}`, {}, false); // ❌ Changed from true to false
+    try {
+        const data = await apiCall(`/djs/${djId}`, {}, false);
+        console.log('🔍 getDJById response:', data);
+        
+        let dj = null;
+        if (data.dj) {
+            dj = data.dj;
+        } else if (data.data) {
+            dj = data.data;
+        } else if (data.profile) {
+            dj = data.profile;
+        } else {
+            dj = data;
+        }
+        
+        return {
+            success: true,
+            dj: dj,
+            raw: data
+        };
+    } catch (error) {
+        console.error('❌ Error fetching DJ:', error);
+        throw error;
+    }
 };
 
-/**
- * Get nearby DJs based on user location - Sends token if available
- * @param {number} latitude - User's latitude
- * @param {number} longitude - User's longitude
- * @param {number} radius_km - Search radius in kilometers
- * @returns {Promise} - List of nearby DJs
- */
 export const getNearbyDJs = async (latitude, longitude, radius_km = 10) => {
-    const queryParams = new URLSearchParams({ 
-        latitude: latitude.toString(), 
-        longitude: longitude.toString(), 
-        radius_km: radius_km.toString() 
-    });
-    return apiCall(`/djs/nearby?${queryParams}`, {}, false); // ❌ Changed from true to false
+    try {
+        const queryParams = new URLSearchParams({ 
+            latitude: latitude.toString(), 
+            longitude: longitude.toString(), 
+            radius_km: radius_km.toString() 
+        });
+        const data = await apiCall(`/djs/nearby?${queryParams}`, {}, false);
+        console.log('🔍 getNearbyDJs response:', data);
+        
+        let djs = [];
+        if (data.djs && Array.isArray(data.djs)) {
+            djs = data.djs;
+        } else if (data.nearby_djs && Array.isArray(data.nearby_djs)) {
+            djs = data.nearby_djs;
+        } else if (data.data && Array.isArray(data.data)) {
+            djs = data.data;
+        } else if (Array.isArray(data)) {
+            djs = data;
+        }
+        
+        return {
+            success: true,
+            djs: djs,
+            total: djs.length
+        };
+    } catch (error) {
+        console.error('❌ Error fetching nearby DJs:', error);
+        throw error;
+    }
 };
 
-/**
- * Get DJ's availability schedule - Sends token if available
- * @param {number|string} djId - DJ ID
- * @returns {Promise} - Availability schedule
- */
 export const getDJAvailability = async (djId) => {
-    return apiCall(`/djs/${djId}/availability`, {}, false); // ❌ Changed from true to false
+    try {
+        const data = await apiCall(`/djs/${djId}/availability`, {}, false);
+        return data;
+    } catch (error) {
+        console.error('❌ Error fetching DJ availability:', error);
+        throw error;
+    }
 };
 
 // ============================================
 // PROTECTED DJ SERVICES (Authentication required)
 // ============================================
 
-/**
- * Get current user's DJ profile - PROTECTED
- * @returns {Promise} - User's DJ profile
- */
 export const getMyDJProfile = async () => {
     return apiCall('/dj/my-profile', {}, false);
 };
 
-/**
- * Create DJ profile - PROTECTED
- * @param {object} profileData - DJ profile data
- * @returns {Promise} - Created DJ profile
- */
 export const createDJProfile = async (profileData) => {
     return apiCall('/dj/profile', {
         method: 'POST',
@@ -156,11 +274,6 @@ export const createDJProfile = async (profileData) => {
     }, false);
 };
 
-/**
- * Update DJ profile - PROTECTED
- * @param {object} profileData - Updated DJ profile data
- * @returns {Promise} - Updated DJ profile
- */
 export const updateDJProfile = async (profileData) => {
     return apiCall('/dj/profile', {
         method: 'PUT',
@@ -168,12 +281,6 @@ export const updateDJProfile = async (profileData) => {
     }, false);
 };
 
-/**
- * Update DJ location - PROTECTED
- * @param {number} latitude - New latitude
- * @param {number} longitude - New longitude
- * @returns {Promise} - Updated DJ profile
- */
 export const updateDJLocation = async (latitude, longitude) => {
     return apiCall('/dj/location', {
         method: 'PATCH',
@@ -181,11 +288,6 @@ export const updateDJLocation = async (latitude, longitude) => {
     }, false);
 };
 
-/**
- * Toggle DJ online/offline status - PROTECTED
- * @param {boolean} is_online - Online status
- * @returns {Promise} - Updated status
- */
 export const toggleDJOnline = async (is_online) => {
     return apiCall('/dj/toggle-online', {
         method: 'PATCH',
@@ -193,10 +295,6 @@ export const toggleDJOnline = async (is_online) => {
     }, false);
 };
 
-/**
- * Delete DJ profile - PROTECTED
- * @returns {Promise} - Deletion confirmation
- */
 export const deleteDJProfile = async () => {
     return apiCall('/dj/profile', {
         method: 'DELETE',
@@ -204,19 +302,20 @@ export const deleteDJProfile = async () => {
 };
 
 // ============================================
-// EXPORT ALL FUNCTIONS
+// OPTIONAL: DEFAULT EXPORT (if you want it)
 // ============================================
-export default {
-    getAllDJs,
-    getAvailableDJs,
-    getVerifiedDJs,
-    getDJById,
-    getNearbyDJs,
-    getDJAvailability,
-    getMyDJProfile,
-    createDJProfile,
-    updateDJProfile,
-    updateDJLocation,
-    toggleDJOnline,
-    deleteDJProfile
-};
+// const djService = {
+//     getAllDJs,
+//     getAvailableDJs,
+//     getVerifiedDJs,
+//     getDJById,
+//     getNearbyDJs,
+//     getDJAvailability,
+//     getMyDJProfile,
+//     createDJProfile,
+//     updateDJProfile,
+//     updateDJLocation,
+//     toggleDJOnline,
+//     deleteDJProfile
+// };
+// export default djService;

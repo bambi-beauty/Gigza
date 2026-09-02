@@ -1,9 +1,15 @@
+// App.js - UPDATED with profile endpoint
+
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { UserProvider } from "./UserContext/ThisUserContext";
 import { SocketProvider } from "./UserContext/SocketContext";
 import Splash from "./components/Splash";
 import Login from "./components/Login";
+
+// Default exports
+import EmergencyDJScreen from "./EmergencyDJScreen";
+// Named exports
 import { ProfileSetupScreen } from "./ProfileSetupScreen";
 import { TopNav } from "./TopNav";
 import { HomeScreen } from "./HomeScreen";
@@ -11,8 +17,6 @@ import { BookingManagementScreen } from "./BookingManagementScreen";
 import { BookingFormScreen } from "./BookingFormScreen";
 import { DJProfileScreen } from "./DJProfileScreen";
 import { EarningsDashboardScreen } from "./EarningsDashboardScreen";
-// ✅ FIXED: Changed from named import to default import
-import EmergencyDJScreen from './EmergencyDJScreen';
 import { NotificationsScreen } from "./NotificationsScreen";
 import { PaymentScreen } from "./PaymentScreen";
 import { RatingsReviewsScreen } from "./RatingsReviewsScreen";
@@ -22,27 +26,104 @@ import { DJRequestsScreen } from "./DJRequestsScreen";
 import { ReviewScreen } from "./ReviewScreen";
 import { DJApplicationScreen } from "./DJApplicationScreen";
 
-// ✅ FIX: Move these components OUTSIDE AppContent
-// ProtectedRoute component - checks authentication
+const API_BASE = 'https://gigza-testing-11.onrender.com/api';
+
+// ============================================
+// ProtectedRoute Component - FIXED
+// ============================================
 function ProtectedRoute({ children }) {
-  const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        // ✅ Get token from localStorage
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+          console.log('❌ No token found');
+          setIsAuthenticated(false);
+          setLoading(false);
+          return;
+        }
+
+        console.log('🔍 Checking auth with profile endpoint...');
+        
+        // ✅ Use profile endpoint instead of validate
+        const response = await fetch(`${API_BASE}/auth/profile`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          console.log('✅ Authenticated successfully');
+          setIsAuthenticated(true);
+        } else {
+          console.log('❌ Not authenticated, status:', response.status);
+          setIsAuthenticated(false);
+          // Clear invalid token
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('isAuthenticated');
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        setIsAuthenticated(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+  
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+  
   return children;
 }
 
-// AuthenticatedLayout component - wraps authenticated pages with TopNav
+// ============================================
+// AuthenticatedLayout Component
+// ============================================
 function AuthenticatedLayout({ children }) {
+  if (!TopNav) {
+    console.error('❌ TopNav component is undefined - check import');
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-white">
+        <div>
+          <h1 className="text-red-500">Error: TopNav component not found</h1>
+          <p className="text-sm mt-2">Please check the import in App.js</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <>
+    <div className="min-h-screen bg-black">
       <TopNav />
-      {children}
-    </>
+      <main className="pt-16">
+        {children}
+      </main>
+    </div>
   );
 }
 
-// AppContent component
+// ============================================
+// AppContent Component
+// ============================================
 function AppContent() {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
@@ -54,42 +135,32 @@ function AppContent() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Check on mount if user needs profile setup
-  useEffect(() => {
-    const needsProfileSetup = localStorage.getItem("needsProfileSetup") === "true";
-    if (needsProfileSetup && !window.location.pathname.includes("/profile-setup")) {
-      navigate("/profile-setup");
-    }
-  }, [navigate]);
-
-  const goToProfileSetup = () => {
-    localStorage.setItem("needsProfileSetup", "true");
-    navigate("/profile-setup");
-  };
-
-  const goToHome = () => {
-    localStorage.removeItem("needsProfileSetup");
-    navigate("/");
-  };
-
   if (isLoading) {
     return <Splash />;
   }
 
   return (
     <Routes>
-      {/* ========== PUBLIC ROUTES (No Auth) ========== */}
       <Route 
         path="/login" 
-        element={<Login goToProfileSetup={goToProfileSetup} goToHome={goToHome} />} 
+        element={
+          <Login 
+            goToProfileSetup={() => navigate("/profile-setup")} 
+            goToHome={() => navigate("/")} 
+          />
+        } 
       />
+      
       <Route 
         path="/profile-setup" 
-        element={<ProfileSetupScreen onComplete={goToHome} onSkip={goToHome} />} 
+        element={
+          <ProfileSetupScreen 
+            onComplete={() => navigate("/")} 
+            onSkip={() => navigate("/")} 
+          />
+        } 
       />
 
-      {/* ========== PROTECTED ROUTES (Auth Required) ========== */}
-      
       <Route
         path="/"
         element={
@@ -233,13 +304,25 @@ function AppContent() {
         }
       />
       
-      {/* Catch all - redirect to home */}
+      <Route
+        path="/review/:bookingId"
+        element={
+          <ProtectedRoute>
+            <AuthenticatedLayout>
+              <ReviewScreen />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        }
+      />
+      
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
 
-// Main App component
+// ============================================
+// Main App Component
+// ============================================
 function App() {
   return (
     <UserProvider>

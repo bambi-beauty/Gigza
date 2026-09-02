@@ -1,4 +1,4 @@
-// DJProfileScreen.js - Updated with correct navigation
+// DJProfileScreen.js - Updated with correct imports and navigation
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -312,7 +312,7 @@ export function DJProfileScreen() {
         }
     };
 
-    // ✅ UPDATED: Handle booking navigation - Navigates to /book/:djId
+    // Handle booking navigation - Navigates to /book/:djId
     const handleBooking = async () => {
         try {
             const token = getToken();
@@ -331,7 +331,7 @@ export function DJProfileScreen() {
             const pricePerHour = dj.price || dj.price_per_hour || 150;
             const totalPrice = pricePerHour * bookingDuration;
 
-            // ✅ Navigate to /book/:djId with booking details in state
+            // Navigate to /book/:djId with booking details in state
             navigate(`/book/${djId}`, {
                 state: {
                     dj: dj,
@@ -911,7 +911,6 @@ export function DJProfileScreen() {
                                         </div>
                                     </div>
 
-                                    {/* ✅ UPDATED: Book Now button navigates to /book/:djId */}
                                     <button
                                         onClick={handleBooking}
                                         className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 transition-all duration-200 text-white py-3 rounded-xl font-semibold text-sm shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40"
@@ -1067,3 +1066,5 @@ export function DJProfileScreen() {
         </div>
     );
 }
+
+export default DJProfileScreen;
