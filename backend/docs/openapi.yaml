@@ -1,0 +1,1136 @@
+openapi: 3.0.3
+info:
+  title: Gigza API
+  version: "1.0.0"
+  description: |
+    Full API surface for the Gigza DJ booking platform.
+
+    **This spec covers three different sources, marked per-endpoint and per-tag:**
+
+    - 🟢 **Live code** — implemented in `backend/` in this repo (routers + controllers), documented directly from source.
+    - 🔵 **Inferred (deployed backend)** — the app's frontend is hardcoded to call
+      `https://gigza-testing-11.onrender.com`, whose source isn't in this repo. These endpoints
+      are reverse-engineered from `frontend/src/services/*.js` and component-level `fetch()` calls.
+      Request/response shapes reflect what the frontend sends and expects, not a confirmed backend contract.
+    - 🟠 **AI microservice** — a separate third service (`ai-admin-2.onrender.com`) used only for
+      scoring DJ applications.
+
+    **Known issues found while documenting** (flagged inline on the affected operations, not fixed here):
+    - `RatingRoute.js` and `ReviewsRouter.js` never apply `authenticateToken`, but their controllers
+      unconditionally read `req.user.userid` — these routes throw when called against local `backend/`.
+    - `GetDJRatings`/`GetMyRating`/`DeleteMyRating`/`GetReviews`/`DeleteReview` controllers read
+      `dj_id` / `review_id` from `req.params`, but the routes never declare those as path segments —
+      so those values are always `undefined` in the local backend code.
+    - `Controllers/DJ_Booking.js` exists but is never mounted to any router, and models a completely
+      different `dj_bookings` table (`dj_id`, `event_id`, `booking_date`) than the booking flow the
+      frontend actually uses. It's listed separately below so it isn't confused with the live flow.
+    - `Reviews.js` also exports `UpdateReview`, `GetPendingReviews`, `ApproveReview`, `RejectReview` —
+      none are wired into `ReviewsRouter.js`.
+  contact:
+    name: Gigza
+servers:
+  - url: https://gigza-testing-11.onrender.com
+    description: Deployed backend (what the frontend actually talks to)
+  - url: http://localhost:5000
+    description: Local backend/ in this repo
+  - url: https://ai-admin-2.onrender.com
+    description: AI application-assessment microservice
+
+tags:
+  - name: Auth
+    description: Signup, login, profile. 🟢 mostly live in `backend/routers/UserRoute.js`; google-login is 🔵 inferred.
+  - name: DJ Location (live)
+    description: 🟢 Real-time DJ geolocation, `backend/routers/DJ_LocatorRouter.js`.
+  - name: DJ Listings & Profile (inferred)
+    description: 🔵 Reverse-engineered from `frontend/src/services/djService.js`. Not present in this repo's backend/.
+  - name: DJ Application (inferred)
+    description: 🔵 "Apply to become a DJ" flow. Reverse-engineered from `ThisUserContext.js` / `DJApplicationScreen.js`.
+  - name: Bookings (inferred, live flow)
+    description: 🔵 The booking flow actually used by the app. Reverse-engineered from `frontend/src/services/bookingService.js`.
+  - name: Bookings (unrouted prototype)
+    description: 🟢 Real code in `backend/Controllers/DJ_Booking.js`, but not mounted to any router — currently unreachable. Separate, incompatible shape from the live booking flow above.
+  - name: Ratings
+    description: 🟢 Live code in `backend/routers/RatingRoute.js`, but see known issues in the top-level description — missing auth middleware and missing path params.
+  - name: Reviews
+    description: 🟢 Live code in `backend/routers/ReviewsRouter.js` — same caveats as Ratings.
+  - name: Admin
+    description: 🟢 Admin-only user management, part of `UserRoute.js`.
+  - name: AI Assessment
+    description: 🟠 Separate microservice at `ai-admin-2.onrender.com`, called from `frontend/src/services/AIAdminService.js`.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "JWT issued by `/api/auth/login` or `/api/auth/verify-otp`. Sent as `Authorization: Bearer <token>`."
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        email_verified:
+          type: boolean
+        usertype:
+          type: string
+          enum: [free, dj, admin]
+          description: Free-text column in `userprofile.usertype` — no DB constraint, any string can be stored.
+        created_at:
+          type: string
+          format: date-time
+
+    AuthTokenResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    DJProfile:
+      type: object
+      description: 🔵 Inferred shape — combines fields seen across djService.js, HomeScreen.js, and DJProfileScreen.js.
+      properties:
+        id:
+          type: integer
+        dj_id:
+          type: integer
+        dj_name:
+          type: string
+        name:
+          type: string
+        tagline:
+          type: string
+        dj_experience:
+          type: string
+        dj_skills:
+          type: string
+        genre:
+          type: string
+        location:
+          type: string
+        price:
+          type: number
+        price_per_hour:
+          type: number
+        rating:
+          type: number
+        review_count:
+          type: integer
+        verified:
+          type: boolean
+        years_experience:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        is_online:
+          type: boolean
+
+    Booking:
+      type: object
+      description: 🔵 Inferred shape, confirmed field names from the working BookingManagementScreen.js integration.
+      properties:
+        booking_id:
+          type: integer
+        dj_id:
+          type: integer
+        dj_name:
+          type: string
+        event_type:
+          type: string
+        event_date:
+          type: string
+          format: date
+        event_time:
+          type: string
+        duration_hours:
+          type: integer
+        number_of_guests:
+          type: integer
+        event_location:
+          type: string
+        price_per_hour:
+          type: number
+        total_price:
+          type: number
+        booking_status:
+          type: string
+          enum: [pending, confirmed, cancelled, completed]
+
+    BookingCreateRequest:
+      type: object
+      required: [dj_id, event_date, event_time]
+      properties:
+        dj_id:
+          type: integer
+        event_date:
+          type: string
+          format: date
+        event_time:
+          type: string
+        duration_hours:
+          type: integer
+          default: 4
+        number_of_guests:
+          type: integer
+        event_type:
+          type: string
+        event_location:
+          type: string
+        price_per_hour:
+          type: number
+        total_price:
+          type: number
+
+    Rating:
+      type: object
+      properties:
+        rating_id:
+          type: integer
+        dj_id:
+          type: integer
+        user_id:
+          type: integer
+        rating_value:
+          type: integer
+          minimum: 1
+          maximum: 5
+        created_at:
+          type: string
+          format: date-time
+
+    Review:
+      type: object
+      properties:
+        review_id:
+          type: integer
+        dj_id:
+          type: integer
+        user_id:
+          type: integer
+        rating_id:
+          type: integer
+          nullable: true
+        review_text:
+          type: string
+        is_approved:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ============================= AUTH =============================
+  /api/auth/signup:
+    post:
+      tags: [Auth]
+      summary: Sign up (stage 1) 🟢
+      description: Rate-limited (`SignupLimit`). Creates an unverified user and emails an OTP. `usertype` is always hardcoded to `'free'` server-side — the frontend cannot set it at signup.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, email, password]
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                  description: Min 8 chars, must include uppercase, lowercase, and a number.
+      responses:
+        '201':
+          description: User created, OTP sent
+        '400':
+          description: Missing/invalid fields
+        '409':
+          description: Email already registered
+
+  /api/auth/verify-otp:
+    post:
+      tags: [Auth]
+      summary: Verify OTP (stage 2) 🟢
+      description: Rate-limited (`OTPLimit`). Marks email verified, creates the `userprofile` row (`usertype = 'free'`), and returns a JWT.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, otp]
+              properties:
+                email: { type: string }
+                otp: { type: string }
+      responses:
+        '200':
+          description: Verified — returns token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  token: { type: string }
+                  userId: { type: integer }
+                  nextStep: { type: string, example: complete_profile }
+        '400':
+          description: Invalid/expired OTP
+
+  /api/auth/resend-otp:
+    post:
+      tags: [Auth]
+      summary: Resend OTP 🟢
+      description: Rate-limited (`ResendOTPLimit`).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string }
+      responses:
+        '200': { description: OTP resent }
+        '429': { description: Rate limited / cooldown }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login 🟢
+      description: Rate-limited (`LoginLimit`). Returns a 7-day JWT embedding `usertype` at time of login.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+        '401':
+          description: Invalid credentials
+        '403':
+          description: Email not verified yet
+
+  /api/auth/google-login:
+    post:
+      tags: [Auth]
+      summary: Google login 🔵
+      description: Inferred from `ThisUserContext.js`. No corresponding controller/route exists anywhere in this repo's `backend/` — calling it against local `backend/` will 404.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, name, googleId]
+              properties:
+                email: { type: string }
+                name: { type: string }
+                googleId: { type: string }
+      responses:
+        '200':
+          description: Login/signup successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AuthTokenResponse'
+                  - type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          isNewUser:
+                            type: boolean
+
+  /api/auth/complete-profile:
+    put:
+      tags: [Auth]
+      summary: Complete profile (stage 3) 🟢
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userid]
+              properties:
+                userid: { type: integer }
+                usertype: { type: string, default: free }
+      responses:
+        '200': { description: Profile completed }
+        '403': { description: User not found or email not verified }
+
+  /api/auth/profile:
+    get:
+      tags: [Auth]
+      summary: Get own profile (cached) 🟢
+      description: Reads from an in-process/user cache first (`readUserFromCache`), falls back to DB on miss.
+      responses:
+        '200': { description: "Profile data. `source` is `cache` or `database`" }
+    put:
+      tags: [Auth]
+      summary: Update own profile 🟢
+      description: |
+        Only touches `usertype` — despite the name, this doesn't update name/phone/bio/etc.
+        **No authorization check on which values are acceptable** — any authenticated user can set
+        their own `usertype` to `'dj'` or `'admin'` directly via this endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [usertype]
+              properties:
+                usertype: { type: string }
+      responses:
+        '200': { description: Updated }
+        '400': { description: usertype missing }
+        '404': { description: Profile not found }
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout 🟢
+      description: Stateless — just tells the client to discard its token. No server-side session/token invalidation.
+      responses:
+        '200': { description: Logged out }
+
+  /api/auth/verified-only:
+    get:
+      tags: [Auth]
+      summary: Example route gated on email verification 🟢
+      responses:
+        '200': { description: Access granted }
+        '403': { description: Email not verified }
+
+  /api/auth/profile-complete:
+    get:
+      tags: [Auth]
+      summary: Example route gated on profile completeness 🟢
+      responses:
+        '200': { description: Access granted }
+
+  /api/users/{id}:
+    get:
+      tags: [Auth]
+      summary: Get user by ID 🟢
+      description: Self or admin only (`isOwnerOrAdmin`).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: User data }
+        '403': { description: Not your resource and not an admin }
+
+  # ============================= ADMIN =============================
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: List all users 🟢
+      description: Requires `usertype === 'admin'` (`isAdmin` middleware).
+      responses:
+        '200': { description: All users with profile info joined }
+        '403': { description: Not an admin }
+
+  # ============================= DJ LOCATION (LIVE) =============================
+  /api/djs/locate:
+    post:
+      tags: [DJ Location (live)]
+      summary: Find DJs within a radius 🟢
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [latitude, longitude]
+              properties:
+                latitude: { type: number }
+                longitude: { type: number }
+                radius_km: { type: number, default: 1.5 }
+      responses:
+        '200': { description: Matching DJs }
+
+  /api/djs/locate/postgis:
+    post:
+      tags: [DJ Location (live)]
+      summary: Find DJs within a radius, PostGIS variant 🟢
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [latitude, longitude]
+              properties:
+                latitude: { type: number }
+                longitude: { type: number }
+                radius_km: { type: number }
+      responses:
+        '200': { description: Matching DJs }
+
+  /api/djs/cell/{cell_id}:
+    get:
+      tags: [DJ Location (live)]
+      summary: Get DJs in an S2 cell 🟢
+      security: []
+      parameters:
+        - name: cell_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: radius_cells
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        '200': { description: DJs in cell }
+
+  /api/dj/location:
+    put:
+      tags: [DJ Location (live)]
+      summary: Update own DJ location 🟢
+      description: DJ-only in intent, but the route itself only checks `authenticateToken` (any logged-in user), not DJ role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [latitude, longitude]
+              properties:
+                latitude: { type: number }
+                longitude: { type: number }
+      responses:
+        '200': { description: Location updated }
+
+  /api/djs/nearby:
+    get:
+      tags: [DJ Location (live)]
+      summary: Nearby DJs (with S2 lookup) 🟢
+      parameters:
+        - name: latitude
+          in: query
+          required: true
+          schema: { type: number }
+        - name: longitude
+          in: query
+          required: true
+          schema: { type: number }
+        - name: radius_km
+          in: query
+          required: false
+          schema: { type: number, default: 1.5 }
+      responses:
+        '200': { description: Nearby DJs }
+        '400': { description: Missing latitude/longitude }
+
+  /api/dj/location/history:
+    get:
+      tags: [DJ Location (live)]
+      summary: Own DJ location history (last 10) 🟢
+      responses:
+        '200': { description: History rows }
+        '404': { description: No history found }
+
+  # ============================= DJ LISTINGS & PROFILE (INFERRED) =============================
+  /api/djs:
+    get:
+      tags: [DJ Listings & Profile (inferred)]
+      summary: List all DJs 🔵
+      security: []
+      parameters:
+        - name: verified_only
+          in: query
+          schema: { type: boolean }
+        - name: available_only
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Array of DJs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  djs:
+                    type: array
+                    items: { $ref: '#/components/schemas/DJProfile' }
+
+  /api/djs/available:
+    get:
+      tags: [DJ Listings & Profile (inferred)]
+      summary: DJs available right now 🔵
+      security: []
+      responses:
+        '200': { description: Array of DJs }
+
+  /api/djs/verified:
+    get:
+      tags: [DJ Listings & Profile (inferred)]
+      summary: Verified DJs only 🔵
+      security: []
+      responses:
+        '200': { description: Array of DJs }
+
+  /api/djs/{id}:
+    get:
+      tags: [DJ Listings & Profile (inferred)]
+      summary: Get DJ by ID 🔵
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: DJ profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DJProfile' }
+
+  /api/djs/{id}/availability:
+    get:
+      tags: [DJ Listings & Profile (inferred)]
+      summary: DJ's availability schedule 🔵
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Availability data }
+
+  /api/dj/my-profile:
+    get:
+      tags: [DJ Listings & Profile (inferred)]
+      summary: Get own DJ profile 🔵
+      responses:
+        '200':
+          description: Own DJ profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dj_profile: { $ref: '#/components/schemas/DJProfile' }
+        '404': { description: No DJ profile for this account }
+
+  /api/dj/profile:
+    post:
+      tags: [DJ Listings & Profile (inferred)]
+      summary: Create own DJ profile 🔵
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DJProfile' }
+      responses:
+        '201': { description: Created }
+    put:
+      tags: [DJ Listings & Profile (inferred)]
+      summary: Update own DJ profile 🔵
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DJProfile' }
+      responses:
+        '200': { description: Updated }
+    delete:
+      tags: [DJ Listings & Profile (inferred)]
+      summary: Delete own DJ profile 🔵
+      responses:
+        '200': { description: Deleted }
+
+  /api/dj/toggle-online:
+    patch:
+      tags: [DJ Listings & Profile (inferred)]
+      summary: Toggle own online/offline status 🔵
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [is_online]
+              properties:
+                is_online: { type: boolean }
+      responses:
+        '200': { description: Status updated }
+
+  # ============================= DJ APPLICATION (INFERRED) =============================
+  /api/dj/apply:
+    post:
+      tags: [DJ Application (inferred)]
+      summary: Apply to become a DJ 🔵
+      description: |
+        Two different frontend call sites disagree on the path: `DJApplicationScreen.js` calls
+        this with the `/api` prefix (correct, matches every other endpoint); the unused
+        `applyToBecomeDJ()` helper in `ThisUserContext.js` also uses `/api/dj/apply` but never
+        sends an `Authorization` header (dead code, not actually called anywhere in the app).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dj_name, dj_skills, primary_genre, price_per_hour]
+              properties:
+                dj_name: { type: string }
+                dj_experience: { type: string }
+                dj_skills: { type: string }
+                primary_genre: { type: string }
+                price_per_hour: { type: number }
+      responses:
+        '200': { description: "Application submitted, pending review" }
+
+  /api/dj/application-status:
+    get:
+      tags: [DJ Application (inferred)]
+      summary: Get own DJ application status 🔵
+      responses:
+        '200':
+          description: Application status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  application:
+                    type: object
+                    properties:
+                      application_status:
+                        type: string
+                        enum: [pending, rejected, verified]
+
+  # ============================= BOOKINGS (INFERRED, LIVE FLOW) =============================
+  /api/bookings:
+    get:
+      tags: [Bookings (inferred, live flow)]
+      summary: List bookings for the logged-in account 🔵
+      description: |
+        Same endpoint is used by both the customer "My Bookings" screen and the DJ "Gig Requests"
+        screen — presumed to be filtered server-side by account role (client's own bookings vs.
+        a DJ's incoming bookings), though this couldn't be confirmed without backend source access.
+      responses:
+        '200':
+          description: Bookings for this account
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  bookings:
+                    type: array
+                    items: { $ref: '#/components/schemas/Booking' }
+    post:
+      tags: [Bookings (inferred, live flow)]
+      summary: Create a booking 🔵
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingCreateRequest' }
+      responses:
+        '200':
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+
+  /api/bookings/{id}:
+    get:
+      tags: [Bookings (inferred, live flow)]
+      summary: Get booking by ID 🔵
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Booking
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Booking' }
+    delete:
+      tags: [Bookings (inferred, live flow)]
+      summary: Cancel a booking 🔵
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Cancelled }
+
+  /api/bookings/{id}/status:
+    patch:
+      tags: [Bookings (inferred, live flow)]
+      summary: Update booking status (DJ accept/decline, admin) 🔵
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [booking_status]
+              properties:
+                booking_status:
+                  type: string
+                  enum: [pending, confirmed, cancelled, completed]
+      responses:
+        '200': { description: Status updated }
+
+  /api/bookings/{id}/review:
+    post:
+      tags: [Bookings (inferred, live flow)]
+      summary: Leave a review for a completed booking 🔵
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating, review_text]
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                review_text: { type: string }
+      responses:
+        '200': { description: Review submitted }
+
+  /api/bookings/check-availability/{djId}:
+    post:
+      tags: [Bookings (inferred, live flow)]
+      summary: Check a DJ's availability for a date/time 🔵
+      parameters:
+        - name: djId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event_date, event_time]
+              properties:
+                event_date: { type: string, format: date }
+                event_time: { type: string }
+      responses:
+        '200':
+          description: Availability result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { type: boolean }
+
+  # ============================= BOOKINGS (UNROUTED PROTOTYPE) =============================
+  /api/_unmounted/dj-bookings:
+    post:
+      tags: [Bookings (unrouted prototype)]
+      summary: Create a DJ booking — dj_bookings table variant 🟢 NOT MOUNTED
+      description: |
+        ⚠️ **This path does not exist anywhere** — shown here only so this code doesn't go
+        undocumented. `backend/Controllers/DJ_Booking.js`'s `createDJBooking` is never registered
+        on any router in `backend/src/index.js`; there is no real URL for it. It also has a broken
+        import (`from "../lib/dbConnect"` missing the `.js` extension, which throws
+        `ERR_MODULE_NOT_FOUND` under this project's ESM config the moment anything tries to import
+        this file — so it would fail even if mounted). Targets a completely different
+        `dj_bookings` table (`dj_id`, `event_id`, `booking_date`) — unrelated to the live booking
+        flow documented above. Don't confuse the two.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dj_id, event_id, booking_date]
+              properties:
+                dj_id: { type: integer }
+                event_id: { type: integer }
+                booking_date: { type: string, format: date-time }
+      responses:
+        '201': { description: Row inserted into dj_bookings }
+        '400': { description: Missing required fields }
+
+  # ============================= RATINGS =============================
+  /api/create-rating:
+    post:
+      tags: [Ratings]
+      summary: Rate a DJ (create or update) 🟢
+      description: |
+        ⚠️ **Known bug**: `RatingRoute.js` never applies `authenticateToken`, but `CreateRating`
+        reads `req.user.userid` unconditionally — this throws against local `backend/`. The
+        deployed backend presumably applies auth some other way, since ratings work in production.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dj_id, rating_value]
+              properties:
+                dj_id: { type: integer }
+                rating_value: { type: integer, minimum: 1, maximum: 5 }
+      responses:
+        '200': { description: Rating updated (already existed) }
+        '201': { description: Rating created }
+        '400': { description: Invalid rating_value or missing dj_id }
+        '404': { description: DJ not found }
+
+  /api/getMyRating:
+    get:
+      tags: [Ratings]
+      summary: Get own rating for a DJ 🟢
+      description: |
+        ⚠️ **Known bugs**: same missing-auth-middleware issue as `create-rating`, plus
+        `GetMyRating` reads `dj_id` from `req.params`, but this route never declares a `:dj_id`
+        path segment — it's always `undefined` as currently wired.
+      responses:
+        '200':
+          description: Own rating (if any)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  has_rated: { type: boolean }
+                  rating: { $ref: '#/components/schemas/Rating' }
+
+  /api/GetDJRating:
+    get:
+      tags: [Ratings]
+      summary: Get rating summary for a DJ (public) 🟢
+      description: |
+        ⚠️ **Known bug**: `GetDJRatings` reads `dj_id` from `req.params`, but the route
+        (`/GetDJRating`) declares no path parameter — always `undefined` as currently wired.
+      security: []
+      responses:
+        '200':
+          description: Rating summary + recent ratings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    properties:
+                      total_ratings: { type: integer }
+                      average_rating: { type: number }
+                  recent_ratings:
+                    type: array
+                    items: { $ref: '#/components/schemas/Rating' }
+
+  /api/delete-rating:
+    delete:
+      tags: [Ratings]
+      summary: Delete own rating for a DJ 🟢
+      description: |
+        ⚠️ Same missing-auth and missing-`:dj_id`-param issues as the other Ratings endpoints.
+      responses:
+        '200': { description: Rating removed }
+        '404': { description: No rating to remove }
+
+  # ============================= REVIEWS =============================
+  /api/create-review:
+    post:
+      tags: [Reviews]
+      summary: Create a review for a DJ 🟢
+      description: |
+        ⚠️ Same missing-`authenticateToken` issue as Ratings — `req.user.userid` is read
+        unconditionally in `createReview`. New reviews default to `is_approved = false`
+        (pending moderation) and won't appear in `GET /api/getReviews` until approved —
+        but the approval endpoint (`ApproveReview`) is defined in the controller and never
+        actually mounted to a route.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dj_id, review_text]
+              properties:
+                dj_id: { type: integer }
+                review_text: { type: string, minLength: 10 }
+                rating_value: { type: integer, minimum: 1, maximum: 5 }
+      responses:
+        '201': { description: "Review submitted, pending moderation" }
+        '409': { description: Already reviewed this DJ }
+
+  /api/getReviews:
+    get:
+      tags: [Reviews]
+      summary: Get approved reviews for a DJ (public) 🟢
+      description: |
+        ⚠️ **Known mismatch**: `GetReviews` reads `dj_id` from `req.params`, but the route
+        (`/getReviews`) declares no path parameter. The frontend (`DJProfileScreen.js`) actually
+        calls this with `dj_id` as a **query** parameter (`?dj_id=...&page=...&limit=...`), which
+        only works if the deployed backend's real implementation reads `req.query.dj_id` instead —
+        documenting the frontend's contract here since that's what's confirmed working.
+      security: []
+      parameters:
+        - name: dj_id
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        '200':
+          description: Paginated approved reviews
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reviews:
+                    type: array
+                    items: { $ref: '#/components/schemas/Review' }
+                  pagination:
+                    type: object
+                    properties:
+                      page: { type: integer }
+                      limit: { type: integer }
+                      total: { type: integer }
+                      total_pages: { type: integer }
+
+  /api/getmyReviews:
+    get:
+      tags: [Reviews]
+      summary: Get own reviews (all statuses) 🟢
+      description: "⚠️ Same missing-`authenticateToken` issue as the other Reviews endpoints."
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10 }
+      responses:
+        '200': { description: Paginated own reviews (includes unapproved) }
+
+  /api/DeleteReview:
+    delete:
+      tags: [Reviews]
+      summary: Delete own review 🟢
+      description: |
+        ⚠️ Same missing-auth issue, plus `DeleteReview` reads `review_id` from `req.params`
+        but the route declares no path parameter — always `undefined` as currently wired.
+      responses:
+        '200': { description: Review deleted }
+        '404': { description: Not found or not yours }
+
+  # ============================= AI ASSESSMENT (EXTERNAL) =============================
+  /assess-application:
+    post:
+      tags: [AI Assessment]
+      summary: AI-score a DJ application 🟠
+      description: |
+        Separate microservice, base URL `https://ai-admin-2.onrender.com` (not `/api`-prefixed,
+        not part of the main Gigza backend). Called from `AIAdminService.js`; used by the (mock)
+        admin panel, not by the main user-facing app.
+      security: []
+      servers:
+        - url: https://ai-admin-2.onrender.com
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                application_id: { type: integer }
+                dj_name: { type: string }
+                dj_experience: { type: string }
+                dj_skills: { type: string }
+                primary_genre: { type: string }
+                price_per_hour: { type: number }
+                has_verified_email: { type: boolean }
+      responses:
+        '200':
+          description: AI assessment result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  score: { type: number }

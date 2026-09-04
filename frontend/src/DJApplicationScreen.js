@@ -37,8 +37,8 @@ export function DJApplicationScreen() {
         return;
       }
 
-      const BASE_API = 'https://gigza-testing-11.onrender.com/api';
-      
+      const BASE_API = process.env.REACT_APP_API_URL || 'https://gigza-testing-11.onrender.com/api';
+
       const response = await fetch(`${BASE_API}/dj/apply`, {
         method: 'POST',
         headers: {

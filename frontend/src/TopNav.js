@@ -1,8 +1,11 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Calendar, Bell, User, Zap } from "lucide-react";
+import { Home, Calendar, Bell, User, Zap, Headphones, Banknote } from "lucide-react";
+import { useUser } from "./UserContext/ThisUserContext";
 
 export function TopNav() {
   const location = useLocation();
+  const { user } = useUser();
+  const isDJ = user?.usertype === "dj";
   const isActive = (path) => location.pathname === path;
 
   return (
@@ -39,8 +42,8 @@ export function TopNav() {
             <span className="font-medium">Bookings</span>
           </Link>
           
-          <Link 
-            to="/notifications" 
+          <Link
+            to="/notifications"
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-colors ${
               isActive('/notifications') ? 'bg-purple-500/20 text-purple-400' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
             }`}
@@ -49,9 +52,31 @@ export function TopNav() {
             <span className="font-medium">Notifications</span>
           </Link>
 
-          
+          {isDJ && (
+            <>
+              <Link
+                to="/requests"
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-colors ${
+                  isActive('/requests') ? 'bg-purple-500/20 text-purple-400' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                }`}
+              >
+                <Headphones className="w-5 h-5" />
+                <span className="font-medium">Gig Requests</span>
+              </Link>
 
-          <Link 
+              <Link
+                to="/dashboard"
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-colors ${
+                  isActive('/dashboard') ? 'bg-purple-500/20 text-purple-400' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                }`}
+              >
+                <Banknote className="w-5 h-5" />
+                <span className="font-medium">Earnings</span>
+              </Link>
+            </>
+          )}
+
+          <Link
             to="/profile" 
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-colors ${
               isActive('/profile') ? 'bg-purple-500/20 text-purple-400' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
