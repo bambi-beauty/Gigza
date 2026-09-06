@@ -1,4 +1,4 @@
-// UserProfileScreen.js - COMPLETE FIXED VERSION with correct API URL
+// UserProfileScreen.js - COMPLETE FIXED VERSION with
 
 import { useState, useEffect, useRef } from "react";
 import { 
@@ -920,6 +920,117 @@ const LogoutModal = ({ onLogout, onClose }) => {
 };
 
 // ============================================
+// ✅ 19. DELETE ACCOUNT MODAL (NEW)
+// ============================================
+const DeleteAccountModal = ({ onDelete, onClose }) => {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmationText, setConfirmationText] = useState("");
+  const [error, setError] = useState("");
+
+  const handleDelete = async () => {
+    if (confirmationText !== "DELETE") {
+      setError('Please type "DELETE" to confirm');
+      return;
+    }
+    setError("");
+    setIsDeleting(true);
+    const result = await onDelete();
+    setIsDeleting(false);
+    if (result) {
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-2xl z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+      <div className="bg-zinc-950/95 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl shadow-black/50 ring-1 ring-white/5 backdrop-blur-2xl overflow-hidden">
+        <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+          <div>
+            <h2 className="text-xl font-bold text-white">Delete Account</h2>
+            <p className="text-zinc-400 text-sm">Permanently delete your account</p>
+          </div>
+          <button onClick={onClose} className="p-2.5 hover:bg-white/10 rounded-full transition-all duration-200 hover:rotate-90 hover:scale-105">
+            <X className="w-5 h-5 text-zinc-400" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {/* Warning Box */}
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-red-400 font-semibold text-sm">⚠️ This action is permanent!</p>
+                <p className="text-zinc-400 text-sm mt-1">
+                  Deleting your account will permanently remove:
+                </p>
+                <ul className="text-zinc-500 text-xs mt-2 space-y-1 list-disc list-inside">
+                  <li>Your profile information</li>
+                  <li>All your bookings and booking history</li>
+                  <li>Your favorite DJs and saved events</li>
+                  <li>Your DJ application (if applicable)</li>
+                  <li>Your payment methods and transaction history</li>
+                  <li>All your reviews and ratings</li>
+                  <li>Your messages and notifications</li>
+                </ul>
+                <p className="text-red-400/80 text-xs mt-3 font-medium">
+                  This data cannot be recovered!
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Confirmation Input */}
+          <div>
+            <label className="text-zinc-400 text-sm block mb-1.5">
+              Type <span className="text-red-400 font-bold">DELETE</span> to confirm
+            </label>
+            <input
+              type="text"
+              value={confirmationText}
+              onChange={(e) => setConfirmationText(e.target.value.toUpperCase())}
+              placeholder="Type DELETE here"
+              className="w-full bg-black/50 border border-zinc-700 rounded-xl px-4 py-3 text-white text-center focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition"
+              maxLength="6"
+              autoFocus
+            />
+            {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
+          </div>
+
+          {/* Delete Button */}
+          <button
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold shadow-lg shadow-red-500/20 hover:shadow-xl hover:shadow-red-500/30 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+          >
+            {isDeleting ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Deleting Account...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <Trash2 className="w-5 h-5" />
+                Permanently Delete Account
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="p-4 border-t border-white/10 flex gap-3 bg-white/[0.02]">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-3 rounded-2xl border border-white/10 text-zinc-200 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/20 transition-all duration-200"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
 // MAIN USER PROFILE SCREEN - COMPLETE
 // ============================================
 export function UserProfileScreen() {
@@ -1415,6 +1526,56 @@ export function UserProfileScreen() {
     }
   };
 
+  // ====== ✅ DELETE ACCOUNT HANDLER ======
+  const handleDeleteAccount = async () => {
+    try {
+      const token = forceGetToken();
+      if (!token) {
+        setError("Not authenticated");
+        return false;
+      }
+
+      const response = await fetch(`${BASE_API}/auth/delete`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        // Clear all local storage
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Clear cookies
+        document.cookie.split(";").forEach((c) => {
+          document.cookie = c
+            .replace(/^ +/, "")
+            .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+        });
+
+        showSuccessMessage("Account deleted successfully.");
+        
+        // Navigate to login after a delay
+        setTimeout(() => {
+          navigate("/login", { replace: true });
+        }, 2000);
+        
+        return true;
+      } else {
+        const data = await response.json();
+        setError(data.message || "Failed to delete account");
+        return false;
+      }
+    } catch (err) {
+      console.error("Error deleting account:", err);
+      setError("Failed to delete account. Please try again.");
+      return false;
+    }
+  };
+
   // ====== MODAL FUNCTIONS ======
   const openModal = (modalName) => { setActiveModal(modalName); resetSettings(); };
   const closeModal = () => { setActiveModal(null); resetSettings(); };
@@ -1560,6 +1721,13 @@ export function UserProfileScreen() {
       {activeModal === 'logout' && (
         <LogoutModal onLogout={handleLogout} onClose={closeModal} />
       )}
+      {/* ✅ NEW: Delete Account Modal */}
+      {activeModal === 'delete-account' && (
+        <DeleteAccountModal 
+          onDelete={handleDeleteAccount} 
+          onClose={closeModal} 
+        />
+      )}
 
       {/* ====== TOASTS ====== */}
       {successMessage && (
@@ -1610,21 +1778,6 @@ export function UserProfileScreen() {
             )}
           </div>
         </div>
-{/* 
-        <div className="grid grid-cols-3 gap-3 mt-6">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-white">{bookingCount}</p>
-            <p className="text-purple-200/70 text-xs">Bookings</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-white">{favoriteCount}</p>
-            <p className="text-purple-200/70 text-xs">Favourite DJs</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-white">{memberYear}</p>
-            <p className="text-purple-200/70 text-xs">Member Since</p>
-          </div>
-        </div> */}
       </div>
 
       {/* ====== MAIN MENU ====== */}
@@ -1700,9 +1853,17 @@ export function UserProfileScreen() {
           </button>
         </div>
 
+        {/* Logout */}
         <button onClick={() => openModal('logout')} className="w-full flex items-center gap-4 py-3 px-2 hover:bg-red-500/10 rounded-xl transition group mt-4 border-t border-zinc-800/50 pt-4">
           <div className="p-2.5 bg-red-500/10 rounded-xl ring-1 ring-red-400/10"><LogOut className="w-4 h-4 text-red-400" /></div>
           <span className="flex-1 text-left text-sm text-red-400">Log Out</span>
+          <ChevronRight className="w-4 h-4 text-red-500/50 group-hover:text-red-400 transition" />
+        </button>
+
+        {/* ✅ NEW: Delete Account */}
+        <button onClick={() => openModal('delete-account')} className="w-full flex items-center gap-4 py-3 px-2 hover:bg-red-500/10 rounded-xl transition group">
+          <div className="p-2.5 bg-red-500/10 rounded-xl ring-1 ring-red-400/10"><Trash2 className="w-4 h-4 text-red-400" /></div>
+          <span className="flex-1 text-left text-sm text-red-400">Delete Account</span>
           <ChevronRight className="w-4 h-4 text-red-500/50 group-hover:text-red-400 transition" />
         </button>
       </div>

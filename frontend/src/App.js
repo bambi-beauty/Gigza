@@ -4,14 +4,15 @@ import { UserProvider } from "./UserContext/ThisUserContext";
 import { SocketProvider } from "./UserContext/SocketContext";
 import Splash from "./components/Splash";
 import Login from "./components/Login";
+import { VerifyOTP } from "./VerifyOTP"; // ✅ ADD THIS IMPORT
 import { ProfileSetupScreen } from "./ProfileSetupScreen";
 import { TopNav } from "./TopNav";
 import { HomeScreen } from "./HomeScreen";
 import { BookingManagementScreen } from "./BookingManagementScreen";
-import { BookingFormScreen } from "./BookingFormScreen"; // ✅ Add this
+import { BookingFormScreen } from "./BookingFormScreen";
 import { DJProfileScreen } from "./DJProfileScreen";
 import { EarningsDashboardScreen } from "./EarningsDashboardScreen";
-import { EmergencyDJScreen } from "./EmergencyDJScreen";
+import EmergencyDJScreen from "./EmergencyDJScreen";
 import { NotificationsScreen } from "./NotificationsScreen";
 import { PaymentScreen } from "./PaymentScreen";
 import { RatingsReviewsScreen } from "./RatingsReviewsScreen";
@@ -79,6 +80,11 @@ function AppContent() {
   return (
     <Routes>
       {/* ========== PUBLIC ROUTES (No Auth) ========== */}
+      {/* ✅ ADD THIS ROUTE - MUST BE BEFORE /login */}
+      <Route 
+        path="/verify-otp" 
+        element={<VerifyOTP onVerified={goToProfileSetup} />} 
+      />
       <Route 
         path="/login" 
         element={<Login goToProfileSetup={goToProfileSetup} goToHome={goToHome} />} 

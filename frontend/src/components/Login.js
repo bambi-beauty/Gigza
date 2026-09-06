@@ -1,18 +1,37 @@
+// src/components/Login.js - Updated with OTP flow
 import React, { useState, useEffect } from "react";
 import "./Login.css";
-import { FcGoogle } from "react-icons/fc";
-import { FaFacebook, FaArrowRight } from "react-icons/fa";
-import { AiOutlineMail, AiOutlineLock, AiOutlineUser } from "react-icons/ai";
-import { HiOutlineUser, HiOutlineMusicNote } from "react-icons/hi";
 import { motion, AnimatePresence } from "framer-motion";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../firebase";
 import { useUser } from "../UserContext/ThisUserContext";
+import { useNavigate } from "react-router-dom";
+
+// Lucide React Icons
+import {
+  Mail,
+  Lock,
+  User,
+  User as UserIcon,
+  Music,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Sparkles,
+  LogIn,
+  UserPlus,
+  Chrome,
+  Facebook,
+  Headphones,
+  PartyPopper,
+  Star
+} from "lucide-react";
 
 function Login({ goToProfileSetup, goToHome }) {
   const { login, signup, googleLogin, loading: authLoading, error: authError, setError } = useUser();
+  const navigate = useNavigate(); // ✅ Added for navigation
   const [isLogin, setIsLogin] = useState(true);
-  const [loginAs, setLoginAs] = useState("fan"); // "fan" | "dj"
+  const [loginAs, setLoginAs] = useState("fan");
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -85,7 +104,7 @@ function Login({ goToProfileSetup, goToHome }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle Signup - Creates account, auto-verified, goes to profile setup
+  // ✅ UPDATED: Signup - Goes to OTP verification
   const handleEmailSignup = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -96,16 +115,26 @@ function Login({ goToProfileSetup, goToHome }) {
       const result = await signup(formData.name, formData.email, formData.password);
 
       if (result.success) {
-        // Store user info for profile setup
+        // ✅ Store email for OTP verification
         localStorage.setItem("newUserEmail", formData.email);
         localStorage.setItem("newUserName", formData.name);
+        
+        // ✅ Store signup intent for later
         if (loginAs === "dj") {
           localStorage.setItem("signupIntent", "dj");
         } else {
           localStorage.removeItem("signupIntent");
         }
-        // Go to profile setup screen
-        goToProfileSetup();
+        
+        // ✅ Navigate to OTP verification
+        navigate("/verify-otp", { 
+          state: { 
+            email: formData.email,
+            name: formData.name,
+            signupIntent: loginAs === "dj" ? "dj" : "fan"
+          } 
+        });
+        
       } else {
         setErrors({ submit: result.error || "Signup failed. Please try again." });
       }
@@ -117,7 +146,7 @@ function Login({ goToProfileSetup, goToHome }) {
     }
   };
 
-  // Handle Login - Gets token and goes to home
+  // ✅ UPDATED: Login - Handles OTP requirement
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -133,6 +162,10 @@ function Login({ goToProfileSetup, goToHome }) {
           return;
         }
         goToHome(result.user);
+      } else if (result.requiresVerification) {
+        // ✅ Handle OTP requirement
+        localStorage.setItem("newUserEmail", result.email);
+        navigate("/verify-otp", { state: { email: result.email } });
       } else {
         setErrors({ submit: result.error || "Login failed. Please check your credentials." });
       }
@@ -144,7 +177,6 @@ function Login({ goToProfileSetup, goToHome }) {
     }
   };
 
-  // Handle Google Login
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     
@@ -166,7 +198,6 @@ function Login({ goToProfileSetup, goToHome }) {
       
       if (loginResult.success) {
         if (loginResult.user?.isNewUser) {
-          // New user - go to profile setup
           localStorage.setItem("newUserEmail", user.email);
           localStorage.setItem("newUserName", user.displayName);
           if (loginAs === "dj") {
@@ -174,6 +205,8 @@ function Login({ goToProfileSetup, goToHome }) {
           } else {
             localStorage.removeItem("signupIntent");
           }
+          // ✅ Google new users also need OTP? 
+          // Actually Google users are auto-verified, so go to profile setup
           goToProfileSetup();
         } else if (loginAs === "dj" && loginResult.user?.usertype !== "dj") {
           setErrors({ submit: "This account isn't registered as a DJ yet. Sign in as Fan instead, then apply to become a DJ from your profile." });
@@ -191,7 +224,6 @@ function Login({ goToProfileSetup, goToHome }) {
     }
   };
 
-  // Handle Facebook Login
   const handleFacebookLogin = async () => {
     setIsLoading(true);
     setTimeout(() => {
@@ -251,7 +283,9 @@ function Login({ goToProfileSetup, goToHome }) {
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
             className="logo-wrapper"
           >
-            <div className="logo-icon">🎵</div>
+            <div className="logo-icon">
+              <Headphones size={36} strokeWidth={1.5} />
+            </div>
             <h1 className="logo">
               Gigza
               <motion.span
@@ -259,7 +293,7 @@ function Login({ goToProfileSetup, goToHome }) {
                 transition={{ duration: 2, repeat: Infinity }}
                 className="logo-sparkle"
               >
-                ✨
+                <Sparkles size={18} className="inline" />
               </motion.span>
             </h1>
           </motion.div>
@@ -271,8 +305,8 @@ function Login({ goToProfileSetup, goToHome }) {
             className="title"
           >
             {isLogin
-              ? (loginAs === "dj" ? "Welcome Back, DJ! 🎧" : "Welcome Back! 👋")
-              : "Create Your Account 🎉"}
+              ? (loginAs === "dj" ? "Welcome Back, DJ!" : "Welcome Back!")
+              : "Create Your Account"}
           </motion.h2>
 
           <motion.p
@@ -293,7 +327,8 @@ function Login({ goToProfileSetup, goToHome }) {
               onClick={() => setLoginAs("fan")}
               disabled={isLoadingState}
             >
-              <HiOutlineUser /> Fan
+              <UserIcon size={16} />
+              Fan
             </button>
             <button
               type="button"
@@ -301,7 +336,8 @@ function Login({ goToProfileSetup, goToHome }) {
               onClick={() => setLoginAs("dj")}
               disabled={isLoadingState}
             >
-              <HiOutlineMusicNote /> DJ
+              <Music size={16} />
+              DJ
             </button>
           </div>
 
@@ -316,7 +352,7 @@ function Login({ goToProfileSetup, goToHome }) {
             >
               {!isLogin && (
                 <div className="input-group">
-                  <AiOutlineUser className="input-icon" />
+                  <User size={18} className="input-icon" />
                   <input
                     type="text"
                     name="name"
@@ -333,7 +369,7 @@ function Login({ goToProfileSetup, goToHome }) {
               )}
 
               <div className="input-group">
-                <AiOutlineMail className="input-icon" />
+                <Mail size={18} className="input-icon" />
                 <input
                   type="email"
                   name="email"
@@ -349,7 +385,7 @@ function Login({ goToProfileSetup, goToHome }) {
               </div>
 
               <div className="input-group">
-                <AiOutlineLock className="input-icon" />
+                <Lock size={18} className="input-icon" />
                 <input
                   type={showPassword ? "text" : "password"}
                   name="password"
@@ -367,14 +403,14 @@ function Login({ goToProfileSetup, goToHome }) {
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={isLoadingState}
                 >
-                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
                 {errors.password && <span className="error">{errors.password}</span>}
               </div>
 
               {!isLogin && (
                 <div className="input-group">
-                  <AiOutlineLock className="input-icon" />
+                  <Lock size={18} className="input-icon" />
                   <input
                     type={showPassword ? "text" : "password"}
                     name="confirmPassword"
@@ -408,8 +444,18 @@ function Login({ goToProfileSetup, goToHome }) {
                   <div className="spinner"></div>
                 ) : (
                   <>
-                    {isLogin ? "Sign In" : "Sign Up"}
-                    <FaArrowRight className="btn-icon" />
+                    {isLogin ? (
+                      <>
+                        <LogIn size={18} />
+                        Sign In
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={18} />
+                        Sign Up
+                      </>
+                    )}
+                    <ArrowRight size={16} className="btn-icon" />
                   </>
                 )}
               </motion.button>
@@ -428,7 +474,7 @@ function Login({ goToProfileSetup, goToHome }) {
               onClick={handleGoogleLogin}
               disabled={isLoadingState}
             >
-              <FcGoogle className="icon" />
+              <Chrome size={18} className="icon" />
               Google
             </motion.button>
 
@@ -439,7 +485,7 @@ function Login({ goToProfileSetup, goToHome }) {
               onClick={handleFacebookLogin}
               disabled={isLoadingState}
             >
-              <FaFacebook className="icon" />
+              <Facebook size={18} className="icon" />
               Facebook
             </motion.button>
           </div>
@@ -449,7 +495,7 @@ function Login({ goToProfileSetup, goToHome }) {
               {isLogin ? "Don't have an account?" : "Already have an account?"}
               <button onClick={toggleMode} className="toggle-btn" disabled={isLoadingState}>
                 {isLogin ? "Sign Up" : "Sign In"}
-                <FaArrowRight className="toggle-icon" />
+                <ArrowRight size={14} className="toggle-icon" />
               </button>
             </p>
           </div>
