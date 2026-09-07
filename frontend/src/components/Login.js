@@ -1,4 +1,4 @@
-// src/components/Login.js - Updated with OTP flow
+// src/components/Login.js - Fan Only (DJ Removed)
 import React, { useState, useEffect } from "react";
 import "./Login.css";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,8 +12,6 @@ import {
   Mail,
   Lock,
   User,
-  User as UserIcon,
-  Music,
   ArrowRight,
   Eye,
   EyeOff,
@@ -23,15 +21,12 @@ import {
   Chrome,
   Facebook,
   Headphones,
-  PartyPopper,
-  Star
 } from "lucide-react";
 
 function Login({ goToProfileSetup, goToHome }) {
   const { login, signup, googleLogin, loading: authLoading, error: authError, setError } = useUser();
-  const navigate = useNavigate(); // ✅ Added for navigation
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
-  const [loginAs, setLoginAs] = useState("fan");
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -104,7 +99,7 @@ function Login({ goToProfileSetup, goToHome }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ UPDATED: Signup - Goes to OTP verification
+  // Signup - Goes to OTP verification
   const handleEmailSignup = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -115,23 +110,15 @@ function Login({ goToProfileSetup, goToHome }) {
       const result = await signup(formData.name, formData.email, formData.password);
 
       if (result.success) {
-        // ✅ Store email for OTP verification
+        // Store email for OTP verification
         localStorage.setItem("newUserEmail", formData.email);
         localStorage.setItem("newUserName", formData.name);
         
-        // ✅ Store signup intent for later
-        if (loginAs === "dj") {
-          localStorage.setItem("signupIntent", "dj");
-        } else {
-          localStorage.removeItem("signupIntent");
-        }
-        
-        // ✅ Navigate to OTP verification
+        // Navigate to OTP verification
         navigate("/verify-otp", { 
           state: { 
             email: formData.email,
-            name: formData.name,
-            signupIntent: loginAs === "dj" ? "dj" : "fan"
+            name: formData.name
           } 
         });
         
@@ -146,7 +133,7 @@ function Login({ goToProfileSetup, goToHome }) {
     }
   };
 
-  // ✅ UPDATED: Login - Handles OTP requirement
+  // Login - Handles OTP requirement
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -157,13 +144,9 @@ function Login({ goToProfileSetup, goToHome }) {
       const result = await login(formData.email, formData.password);
 
       if (result.success) {
-        if (loginAs === "dj" && result.user?.usertype !== "dj") {
-          setErrors({ submit: "This account isn't registered as a DJ yet. Sign in as Fan instead, then apply to become a DJ from your profile." });
-          return;
-        }
         goToHome(result.user);
       } else if (result.requiresVerification) {
-        // ✅ Handle OTP requirement
+        // Handle OTP requirement
         localStorage.setItem("newUserEmail", result.email);
         navigate("/verify-otp", { state: { email: result.email } });
       } else {
@@ -200,16 +183,7 @@ function Login({ goToProfileSetup, goToHome }) {
         if (loginResult.user?.isNewUser) {
           localStorage.setItem("newUserEmail", user.email);
           localStorage.setItem("newUserName", user.displayName);
-          if (loginAs === "dj") {
-            localStorage.setItem("signupIntent", "dj");
-          } else {
-            localStorage.removeItem("signupIntent");
-          }
-          // ✅ Google new users also need OTP? 
-          // Actually Google users are auto-verified, so go to profile setup
           goToProfileSetup();
-        } else if (loginAs === "dj" && loginResult.user?.usertype !== "dj") {
-          setErrors({ submit: "This account isn't registered as a DJ yet. Sign in as Fan instead, then apply to become a DJ from your profile." });
         } else {
           goToHome(loginResult.user);
         }
@@ -304,9 +278,7 @@ function Login({ goToProfileSetup, goToHome }) {
             transition={{ delay: 0.2 }}
             className="title"
           >
-            {isLogin
-              ? (loginAs === "dj" ? "Welcome Back, DJ!" : "Welcome Back!")
-              : "Create Your Account"}
+            {isLogin ? "Welcome Back!" : "Create Your Account"}
           </motion.h2>
 
           <motion.p
@@ -316,30 +288,9 @@ function Login({ goToProfileSetup, goToHome }) {
             className="subtitle"
           >
             {isLogin
-              ? (loginAs === "dj" ? "Sign in to manage your gigs" : "Sign in to continue your music journey")
-              : "Join Gigza and start your DJ adventure"}
+              ? "Sign in to continue your music journey"
+              : "Join Gigza and start your music adventure"}
           </motion.p>
-
-          <div className="role-toggle">
-            <button
-              type="button"
-              className={`role-btn ${loginAs === "fan" ? "active" : ""}`}
-              onClick={() => setLoginAs("fan")}
-              disabled={isLoadingState}
-            >
-              <UserIcon size={16} />
-              Fan
-            </button>
-            <button
-              type="button"
-              className={`role-btn ${loginAs === "dj" ? "active" : ""}`}
-              onClick={() => setLoginAs("dj")}
-              disabled={isLoadingState}
-            >
-              <Music size={16} />
-              DJ
-            </button>
-          </div>
 
           <AnimatePresence mode="wait">
             <motion.form
