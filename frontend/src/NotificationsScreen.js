@@ -1,837 +1,1197 @@
 // screens/NotificationsScreen.jsx
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { 
-  Calendar, 
-  DollarSign, 
-  Bell, 
-  Check, 
-  Loader2, 
-  AlertCircle,
-  X,
-  Trash2,
-  Clock,
-  Star,
-  MessageCircle,
-  CreditCard,
-  UserPlus,
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
   Award,
-  LogOut
+  Bell,
+  Calendar,
+  Check,
+  CheckCheck,
+  Clock,
+  CreditCard,
+  DollarSign,
+  Flame,
+  Loader2,
+  LogOut,
+  MessageCircle,
+  RefreshCw,
+  Sparkles,
+  Star,
+  Trash2,
+  UserPlus,
+  X,
+  AlertCircle,
 } from "lucide-react";
 import { useUser } from "../../frontend/src/UserContext/ThisUserContext.js";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "../src/hooks/useTranslation.js";
 
 // ============================================
-// HELPER FUNCTIONS
+// CONFIG
 // ============================================
 
-// Map notification types to icons
-const getNotificationIcon = (type) => {
-  const typeMap = {
-    'booking_created': Calendar,
-    'booking_confirmed': Calendar,
-    'booking_cancelled': Calendar,
-    'booking_rescheduled': Calendar,
-    'booking_status_updated': Calendar,
-    'booking_completed': Calendar,
-    'payment_received': DollarSign,
-    'payment_failed': CreditCard,
-    'payment_refunded': CreditCard,
-    'dj_application_submitted': UserPlus,
-    'dj_application_approved': Award,
-    'dj_application_rejected': X,
-    'new_message': MessageCircle,
-    'new_review': Star,
-    'review_request': Star,
-    'system_alert': AlertCircle,
-    'reminder': Clock,
-    'promotional': Bell,
-    'default': Bell
-  };
-  
-  return typeMap[type] || typeMap.default;
+const BASE_API = "https://gigza-testing-11.onrender.com";
+const LIMIT = 20;
+const POLL_MS = 30000;
+const UNDO_MS = 5000;
+const STREAK_KEY = "gigza_inbox_streak";
+
+// ============================================
+// NOTIFICATION TYPE METADATA
+// Labels/CTAs are translation KEYS now — the
+// component resolves them with t() at render time.
+// ============================================
+
+const TYPE_META = {
+  booking_created:        { icon: Calendar,      tone: "bg-purple-500/20 text-purple-300", labelKey: "notifTypeBookingCreated",    ctaKey: "notifCtaReviewBooking", category: "bookings", actionable: true },
+  booking_confirmed:      { icon: Calendar,      tone: "bg-emerald-500/20 text-emerald-300", labelKey: "notifTypeBookingConfirmed", ctaKey: "notifCtaViewBooking",   category: "bookings" },
+  booking_cancelled:      { icon: Calendar,      tone: "bg-red-500/20 text-red-300",     labelKey: "notifTypeBookingCancelled", ctaKey: "notifCtaSeeDetails",    category: "bookings" },
+  booking_rescheduled:    { icon: Calendar,      tone: "bg-orange-500/20 text-orange-300", labelKey: "notifTypeBookingRescheduled", ctaKey: "notifCtaCheckTime", category: "bookings", actionable: true },
+  booking_status_updated: { icon: Calendar,      tone: "bg-blue-500/20 text-blue-300",   labelKey: "notifTypeBookingUpdated",   ctaKey: "notifCtaViewBooking",   category: "bookings" },
+  booking_completed:      { icon: Calendar,      tone: "bg-emerald-500/20 text-emerald-300", labelKey: "notifTypeBookingCompleted", ctaKey: "notifCtaViewBooking", category: "bookings" },
+  payment_received:       { icon: DollarSign,    tone: "bg-green-500/20 text-green-300",  labelKey: "notifTypePaymentReceived",  ctaKey: "notifCtaViewPayment",   category: "payments" },
+  payment_failed:         { icon: CreditCard,    tone: "bg-red-500/20 text-red-300",     labelKey: "notifTypePaymentFailed",    ctaKey: "notifCtaFixPayment",    category: "payments", actionable: true },
+  payment_refunded:       { icon: CreditCard,    tone: "bg-yellow-500/20 text-yellow-300", labelKey: "notifTypePaymentRefunded", ctaKey: "notifCtaViewPayment",  category: "payments" },
+  dj_application_submitted: { icon: UserPlus,    tone: "bg-cyan-500/20 text-cyan-300",   labelKey: "notifTypeAppSubmitted",     ctaKey: "notifCtaViewApplication", category: "updates" },
+  dj_application_approved:  { icon: Award,       tone: "bg-emerald-500/20 text-emerald-300", labelKey: "notifTypeAppApproved",   ctaKey: "notifCtaViewApplication", category: "updates" },
+  dj_application_rejected:  { icon: X,           tone: "bg-red-500/20 text-red-300",     labelKey: "notifTypeAppRejected",      ctaKey: "notifCtaViewApplication", category: "updates" },
+  new_message:            { icon: MessageCircle, tone: "bg-indigo-500/20 text-indigo-300", labelKey: "notifTypeNewMessage",      ctaKey: "notifCtaReply",         category: "messages", actionable: true },
+  new_review:             { icon: Star,          tone: "bg-yellow-500/20 text-yellow-300", labelKey: "notifTypeNewReview",       ctaKey: "notifCtaReadReview",    category: "reviews" },
+  review_request:         { icon: Star,          tone: "bg-yellow-500/20 text-yellow-300", labelKey: "notifTypeReviewRequest",   ctaKey: "notifCtaLeaveReview",   category: "reviews", actionable: true },
+  system_alert:           { icon: AlertCircle,   tone: "bg-red-500/20 text-red-300",     labelKey: "notifTypeSystemAlert",      ctaKey: "notifCtaLearnMore",     category: "updates" },
+  reminder:               { icon: Clock,         tone: "bg-blue-500/20 text-blue-300",   labelKey: "notifTypeReminder",         ctaKey: "notifCtaOpen",          category: "updates", actionable: true },
+  promotional:            { icon: Bell,          tone: "bg-pink-500/20 text-pink-300",   labelKey: "notifTypePromotion",        ctaKey: "notifCtaTakeLook",      category: "updates" },
 };
 
-// Map notification types to icon colors
-const getIconColor = (type) => {
-  const colorMap = {
-    'booking_created': 'bg-purple-500/20 text-purple-400',
-    'booking_confirmed': 'bg-emerald-500/20 text-emerald-400',
-    'booking_cancelled': 'bg-red-500/20 text-red-400',
-    'booking_rescheduled': 'bg-orange-500/20 text-orange-400',
-    'booking_status_updated': 'bg-blue-500/20 text-blue-400',
-    'booking_completed': 'bg-emerald-500/20 text-emerald-400',
-    'payment_received': 'bg-green-500/20 text-green-400',
-    'payment_failed': 'bg-red-500/20 text-red-400',
-    'payment_refunded': 'bg-yellow-500/20 text-yellow-400',
-    'dj_application_submitted': 'bg-cyan-500/20 text-cyan-400',
-    'dj_application_approved': 'bg-emerald-500/20 text-emerald-400',
-    'dj_application_rejected': 'bg-red-500/20 text-red-400',
-    'new_message': 'bg-indigo-500/20 text-indigo-400',
-    'new_review': 'bg-yellow-500/20 text-yellow-400',
-    'review_request': 'bg-yellow-500/20 text-yellow-400',
-    'system_alert': 'bg-red-500/20 text-red-400',
-    'reminder': 'bg-blue-500/20 text-blue-400',
-    'promotional': 'bg-pink-500/20 text-pink-400',
-    'default': 'bg-zinc-500/20 text-zinc-400'
+// Meta lookup that returns translation KEYS (not resolved strings).
+// The resolver lives in `useMeta` below.
+const metaKeysFor = (type) =>
+  TYPE_META[type] || {
+    icon: Bell,
+    tone: "bg-zinc-500/20 text-zinc-300",
+    labelKey: null,
+    fallbackLabel: prettifyType(type),
+    ctaKey: "notifCtaOpen",
+    category: "updates",
   };
-  
-  return colorMap[type] || colorMap.default;
-};
 
-// Get priority color
+const prettifyType = (type) =>
+  type ? type.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()) : "Notification";
+
+// Hook that resolves a type's metadata into translated strings.
+// Use inside any component that already has `t`.
+function useMeta(t) {
+  return useCallback(
+    (type) => {
+      const keys = metaKeysFor(type);
+      return {
+        icon: keys.icon,
+        tone: keys.tone,
+        category: keys.category,
+        actionable: keys.actionable,
+        label: keys.labelKey ? t(keys.labelKey) : (keys.fallbackLabel || t("notificationFallback")),
+        cta: t(keys.ctaKey || "notifCtaOpen"),
+      };
+    },
+    [t]
+  );
+}
+
+const CATEGORIES = [
+  { id: "all",      labelKey: "catAll" },
+  { id: "bookings", labelKey: "catBookings" },
+  { id: "payments", labelKey: "catPayments" },
+  { id: "messages", labelKey: "catMessages" },
+  { id: "reviews",  labelKey: "catReviews" },
+  { id: "updates",  labelKey: "catUpdates" },
+];
+
+const FILTERS = [
+  { id: "all",    labelKey: "filterAll" },
+  { id: "unread", labelKey: "filterUnread" },
+  { id: "read",   labelKey: "filterRead" },
+];
+
+// ============================================
+// HELPERS
+// ============================================
+
 const getPriorityColor = (priority) => {
   switch (priority?.toLowerCase()) {
-    case 'high': return 'text-red-400 bg-red-500/10';
-    case 'medium': return 'text-yellow-400 bg-yellow-500/10';
-    case 'low': return 'text-green-400 bg-green-500/10';
-    default: return 'text-zinc-400 bg-zinc-500/10';
+    case "high":   return "text-red-300 bg-red-500/15";
+    case "medium": return "text-yellow-300 bg-yellow-500/15";
+    case "low":    return "text-green-300 bg-green-500/15";
+    default:       return "text-zinc-400 bg-zinc-500/10";
   }
 };
 
-// Format time to human-readable
-const formatTime = (dateString) => {
-  if (!dateString) return 'Just now';
-  
+// `meta` is the resolved meta object (has `.actionable`) so this stays pure
+const needsAttention = (n, meta) =>
+  !n.read && (n.priority?.toLowerCase() === "high" || !!meta.actionable);
+
+const formatTime = (dateString, t) => {
+  if (!dateString) return t("timeJustNow");
+
   const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now - date;
-  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMs = Date.now() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
   const diffWeeks = Math.floor(diffDays / 7);
   const diffMonths = Math.floor(diffDays / 30);
 
-  if (diffSecs < 60) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  if (diffWeeks < 4) return `${diffWeeks}w ago`;
-  if (diffMonths < 12) return `${diffMonths}mo ago`;
-  
-  return date.toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric',
-    year: 'numeric'
+  if (diffMs < 60000) return t("timeJustNow");
+  if (diffMins < 60) return `${diffMins}${t("timeMinutesShort")}`;
+  if (diffHours < 24) return `${diffHours}${t("timeHoursShort")}`;
+  if (diffDays < 7)  return `${diffDays}${t("timeDaysShort")}`;
+  if (diffWeeks < 4) return `${diffWeeks}${t("timeWeeksShort")}`;
+  if (diffMonths < 12) return `${diffMonths}${t("timeMonthsShort")}`;
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 };
 
-// Get readable notification type
-const getReadableType = (type) => {
-  const typeMap = {
-    'booking_created': 'New Booking',
-    'booking_confirmed': 'Booking Confirmed',
-    'booking_cancelled': 'Booking Cancelled',
-    'booking_rescheduled': 'Booking Rescheduled',
-    'booking_status_updated': 'Booking Updated',
-    'booking_completed': 'Booking Completed',
-    'payment_received': 'Payment Received',
-    'payment_failed': 'Payment Failed',
-    'payment_refunded': 'Payment Refunded',
-    'dj_application_submitted': 'Application Submitted',
-    'dj_application_approved': 'Application Approved',
-    'dj_application_rejected': 'Application Rejected',
-    'new_message': 'New Message',
-    'new_review': 'New Review',
-    'review_request': 'Review Request',
-    'system_alert': 'System Alert',
-    'reminder': 'Reminder',
-    'promotional': 'Promotion'
-  };
-  
-  return typeMap[type] || type;
+const dayLabelFor = (dateString, t) => {
+  if (!dateString) return t("dayToday");
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return t("dayEarlier");
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const dStart = new Date(d);
+  dStart.setHours(0, 0, 0, 0);
+  const diff = Math.round((start - dStart) / 86400000);
+  if (diff <= 0) return t("dayToday");
+  if (diff === 1) return t("dayYesterday");
+  if (diff < 7) return d.toLocaleDateString(undefined, { weekday: "long" });
+  return t("dayEarlier");
 };
 
+const groupByDay = (list, t) => {
+  const map = new Map();
+  list.forEach((n) => {
+    const label = dayLabelFor(n.created_at, t);
+    if (!map.has(label)) map.set(label, []);
+    map.get(label).push(n);
+  });
+  return Array.from(map, ([label, items]) => ({ label, items }));
+};
+
+const getTokenExpiry = (token) => {
+  try {
+    const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = part + "=".repeat((4 - (part.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    return payload.exp ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+};
+
+class AuthError extends Error {
+  constructor(fromServer = false) {
+    super("Your session has expired. Please log in again.");
+    this.name = "AuthError";
+    this.fromServer = fromServer;
+  }
+}
+
+// ---- Streak (device-local) ----
+const pad = (v) => String(v).padStart(2, "0");
+const dayKey = (d = new Date()) =>
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+const readStreak = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STREAK_KEY));
+    if (raw && typeof raw.count === "number") return raw;
+  } catch {}
+  return { count: 0, last: null };
+};
+
+const bumpStreak = () => {
+  const s = readStreak();
+  const today = dayKey();
+  if (s.last === today) return s;
+  const yesterday = dayKey(new Date(Date.now() - 86400000));
+  const next = { count: s.last === yesterday ? s.count + 1 : 1, last: today };
+  try { localStorage.setItem(STREAK_KEY, JSON.stringify(next)); } catch {}
+  return next;
+};
+
+const CONFETTI = Array.from({ length: 12 }, (_, i) => {
+  const angle = (i / 12) * Math.PI * 2;
+  const radius = 46 + (i % 3) * 16;
+  return {
+    x: Math.round(Math.cos(angle) * radius),
+    y: Math.round(Math.sin(angle) * radius),
+    color: ["#a855f7", "#34d399", "#fbbf24", "#60a5fa"][i % 4],
+    delay: (i % 4) * 40,
+  };
+});
+
+const STYLES = `
+.gz-noscroll{scrollbar-width:none}
+.gz-noscroll::-webkit-scrollbar{display:none}
+@keyframes gz-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes gz-pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+@keyframes gz-ring{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.6);opacity:0}}
+@keyframes gz-burst{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--x),var(--y)) scale(.4);opacity:0}}
+.gz-enter{animation:gz-enter .35s ease-out both}
+.gz-pop{animation:gz-pop .2s ease-out both}
+.gz-ring{animation:gz-ring 1.8s ease-in-out infinite}
+.gz-confetti{animation:gz-burst .9s ease-out forwards}
+@media (prefers-reduced-motion: reduce){
+  .gz-enter,.gz-pop,.gz-ring,.gz-confetti{animation:none}
+}
+`;
+
 // ============================================
-// MAIN COMPONENT
+// PRESENTATIONAL COMPONENTS
+// ============================================
+
+const NotificationCard = memo(function NotificationCard({
+  n,
+  timeLabel,
+  featured,
+  enterIndex,
+  onOpen,
+  onMarkRead,
+  onDelete,
+  meta,
+  t,
+}) {
+  const Icon = meta.icon;
+  const unread = !n.read;
+  const urgent = unread && n.priority?.toLowerCase() === "high";
+  const showCta = !!n.action_url && (featured || unread);
+
+  return (
+    <article
+      onClick={() => onOpen(n)}
+      style={enterIndex != null ? { animationDelay: `${enterIndex * 45}ms` } : undefined}
+      className={`relative rounded-2xl border p-4 cursor-pointer transition-colors ${
+        enterIndex != null ? "gz-enter" : ""
+      } ${
+        featured
+          ? "bg-gradient-to-br from-purple-600/20 via-zinc-900 to-zinc-900 border-purple-500/40 hover:border-purple-400/70"
+          : unread
+          ? "bg-purple-500/5 border-purple-500/30 hover:border-purple-500/60"
+          : "bg-zinc-900/60 border-zinc-800 hover:border-zinc-700"
+      }`}
+    >
+      {unread && !featured && (
+        <span className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-purple-500" />
+      )}
+
+      <div className="flex gap-4">
+        <div className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${meta.tone}`}>
+          <Icon className="w-5 h-5" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="min-w-0">
+                <button
+                  type="button"
+                  className={`block max-w-full truncate text-left rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                    unread ? "font-semibold text-white" : "font-medium text-zinc-300"
+                  }`}
+                >
+                  {n.title}
+                </button>
+              </h3>
+              <span className="text-xs text-zinc-500">{meta.label}</span>
+            </div>
+            <span
+              className="text-xs text-zinc-500 whitespace-nowrap pt-0.5"
+              title={n.created_at ? new Date(n.created_at).toLocaleString() : undefined}
+            >
+              {timeLabel}
+            </span>
+          </div>
+
+          <p className="text-sm text-zinc-400 mt-1.5">{n.message}</p>
+
+          <div
+            className="flex items-center justify-between gap-2 mt-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {urgent && (
+                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${getPriorityColor(n.priority)}`}>
+                  {t("urgent")}
+                </span>
+              )}
+              {showCta &&
+                (featured ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpen(n)}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-300"
+                  >
+                    {meta.cta}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onOpen(n)}
+                    className="text-sm font-medium text-purple-300 hover:text-purple-200 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded"
+                  >
+                    {meta.cta}
+                  </button>
+                ))}
+            </div>
+
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {unread && (
+                <button
+                  type="button"
+                  onClick={() => onMarkRead(n.id)}
+                  className="p-2 rounded-lg text-zinc-500 hover:text-purple-300 hover:bg-purple-500/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                  title={t("markAsRead")}
+                  aria-label={t("markAsRead")}
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onDelete(n.id)}
+                className="p-2 rounded-lg text-zinc-500 hover:text-red-300 hover:bg-red-500/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                title={t("deleteNotification")}
+                aria-label={t("deleteNotification")}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+});
+
+function NotificationSkeleton() {
+  const { t } = useTranslation();
+  return (
+    <div role="status" aria-live="polite" className="space-y-3">
+      <span className="sr-only">{t("loadingNotifications")}</span>
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 flex gap-4 animate-pulse">
+          <div className="w-11 h-11 rounded-xl bg-zinc-800" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-2/3 bg-zinc-800 rounded" />
+            <div className="h-3 w-full bg-zinc-800/70 rounded" />
+            <div className="h-3 w-1/2 bg-zinc-800/70 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StateCard({ icon: Icon, iconClass, title, body, children }) {
+  return (
+    <div className="mt-16 text-center px-2">
+      <div className={`rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 ${iconClass}`}>
+        <Icon className="w-9 h-9" />
+      </div>
+      <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
+      <p className="text-sm text-zinc-500 max-w-xs mx-auto">{body}</p>
+      {children && <div className="mt-5 flex items-center justify-center gap-3">{children}</div>}
+    </div>
+  );
+}
+
+function CaughtUpBanner({ streak, t }) {
+  return (
+    <div
+      role="status"
+      className="gz-pop relative overflow-hidden mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 flex items-center gap-3"
+    >
+      {CONFETTI.map((c, i) => (
+        <span
+          key={i}
+          aria-hidden="true"
+          className="gz-confetti absolute left-9 top-1/2 w-1.5 h-1.5 rounded-full"
+          style={{
+            "--x": `${c.x}px`,
+            "--y": `${c.y}px`,
+            background: c.color,
+            animationDelay: `${c.delay}ms`,
+          }}
+        />
+      ))}
+      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center flex-shrink-0">
+        <Sparkles className="w-5 h-5" />
+      </div>
+      <div className="min-w-0">
+        <p className="font-semibold text-white">{t("inboxCleared")}</p>
+        <p className="text-sm text-zinc-400">
+          {streak >= 2 ? t("inboxClearedStreak").replace("{n}", streak) : t("inboxClearedSolo")}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// MAIN
 // ============================================
 
 export function NotificationsScreen() {
   const { getToken, logout } = useUser();
   const navigate = useNavigate();
-  
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { t } = useTranslation();
+  const metaFor = useMeta(t);
+
+  const getTokenRef = useRef(getToken);
+  const logoutRef = useRef(logout);
+  const navigateRef = useRef(navigate);
+  getTokenRef.current = getToken;
+  logoutRef.current = logout;
+  navigateRef.current = navigate;
+
+  const [items, setItems] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [markingAll, setMarkingAll] = useState(false);
-  const [markingSingle, setMarkingSingle] = useState(null);
-  const [deleting, setDeleting] = useState(null);
-  const [filter, setFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  const [filter, setFilter] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [isRetrying, setIsRetrying] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
+  const [error, setError] = useState(null);
+  const [authExpired, setAuthExpired] = useState(false);
+  const [incoming, setIncoming] = useState(0);
+  const [toast, setToast] = useState(null);
+  const [streak, setStreak] = useState(readStreak);
+  const [celebrate, setCelebrate] = useState(false);
+  const [revealing, setRevealing] = useState(true);
+  const [tick, setTick] = useState(0);
 
-  const BASE_API = 'https://gigza-testing-11.onrender.com';
-  const LIMIT = 20;
-  const observerRef = useRef();
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const pageRef = useRef(0);
+  const requestIdRef = useRef(0);
+  const loadingMoreRef = useRef(false);
+  const hasLoadedRef = useRef(false);
+  const authExpiredRef = useRef(false);
+  const baselineRef = useRef(0);
+  const mutationsRef = useRef(0);
+  const pendingDeletesRef = useRef(new Map());
+  const toastTimerRef = useRef(null);
+  const celebrateTimerRef = useRef(null);
+  const prevUnreadRef = useRef(null);
+  const sentinelRef = useRef(null);
 
-  // ============================================
-  // TOKEN VALIDATION HELPER
-  // ============================================
-  const validateAndGetToken = useCallback(async () => {
-    const token = getToken();
-    
-    console.log('🔑 Token present:', !!token);
-    if (token) {
-      console.log('📝 Token preview:', token.substring(0, 30) + '...');
-    }
-    
-    if (!token) {
-      console.warn('⚠️ No token found in localStorage');
-      return null;
-    }
-    
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const exp = payload.exp * 1000;
-      const now = Date.now();
-      
-      console.log('⏰ Token expires:', new Date(exp));
-      console.log('⏰ Current time:', new Date(now));
-      
-      if (now >= exp) {
-        console.warn('⚠️ Token expired at:', new Date(exp));
-        return null;
-      }
-      
-      return token;
-    } catch (error) {
-      console.error('❌ Error validating token:', error);
-      return null;
-    }
-  }, [getToken]);
+  const apiFetch = useCallback(async (path, options = {}) => {
+    const token = getTokenRef.current?.();
+    const exp = token ? getTokenExpiry(token) : null;
+    if (!token || (exp && Date.now() >= exp)) throw new AuthError(false);
 
-  // ============================================
-  // FETCH NOTIFICATIONS
-  // ============================================
-  const fetchNotifications = useCallback(async (reset = true) => {
-    try {
+    const res = await fetch(`${BASE_API}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.status === 401) throw new AuthError(true);
+    return res;
+  }, []);
+
+  const handleAuthFailure = useCallback((err) => {
+    if (authExpiredRef.current) return;
+    authExpiredRef.current = true;
+    setAuthExpired(true);
+    setLoading(false);
+    setRefreshing(false);
+    setLoadingMore(false);
+    if (err?.fromServer) logoutRef.current?.();
+  }, []);
+
+  const showToast = useCallback(
+    (message, { tone = "info", actionLabel, onAction, duration = 4000 } = {}) => {
+      clearTimeout(toastTimerRef.current);
+      setToast({ id: Date.now(), message, tone, actionLabel, onAction });
+      toastTimerRef.current = setTimeout(() => setToast(null), duration);
+    },
+    []
+  );
+
+  const loadNotifications = useCallback(
+    async (reset = true, { silent = false } = {}) => {
+      if (!reset && loadingMoreRef.current) return;
+      const reqId = ++requestIdRef.current;
+
       if (reset) {
-        setLoading(true);
-        setPage(0);
-        setHasMore(true);
+        pageRef.current = 0;
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+        if (silent) setRefreshing(true);
+        else setLoading(true);
       } else {
+        loadingMoreRef.current = true;
         setLoadingMore(true);
       }
-      
       setError(null);
-      
-      const token = await validateAndGetToken();
-      
-      if (!token) {
-        setError("Your session has expired. Please login again.");
-        setLoading(false);
-        return;
-      }
 
-      const currentPage = reset ? 0 : page;
-      const params = new URLSearchParams({
-        limit: LIMIT,
-        offset: currentPage * LIMIT
-      });
+      try {
+        const params = new URLSearchParams({
+          limit: String(LIMIT),
+          offset: String(pageRef.current * LIMIT),
+        });
+        if (filter === "unread") params.set("unread_only", "true");
 
-      if (filter === 'unread') {
-        params.append('unread_only', 'true');
-      }
-      if (typeFilter !== 'all') {
-        params.append('type', typeFilter);
-      }
+        const res = await apiFetch(`/api/notifications?${params}`);
 
-      console.log('📡 Fetching notifications with params:', params.toString());
+        if (res.status === 403) throw new Error(t("notifNoPermission"));
 
-      const response = await fetch(`${BASE_API}/api/notifications?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || t("notifLoadFailed"));
+        if (reqId !== requestIdRef.current) return;
+
+        const list = Array.isArray(data.notifications) ? data.notifications : [];
+        pageRef.current += 1;
+
+        if (reset) {
+          const unread =
+            typeof data.unreadCount === "number"
+              ? data.unreadCount
+              : list.filter((n) => !n.read).length;
+          setItems(list);
+          setUnreadCount(unread);
+          baselineRef.current = unread;
+          setIncoming(0);
+          hasLoadedRef.current = true;
+          setHasLoaded(true);
+        } else {
+          setItems((prev) => {
+            const seen = new Set(prev.map((n) => n.id));
+            return [...prev, ...list.filter((n) => !seen.has(n.id))];
+          });
         }
-      });
-
-      console.log('📡 Response status:', response.status);
-
-      if (response.status === 401) {
-        console.warn('⚠️ 401 Unauthorized - Token may be invalid or expired');
-        setError("Your session has expired. Please login again.");
-        setLoading(false);
-        logout();
-        return;
+        setHasMore(list.length === LIMIT);
+      } catch (err) {
+        if (reqId !== requestIdRef.current) return;
+        if (err instanceof AuthError) handleAuthFailure(err);
+        else setError(err.message || t("notifLoadError"));
+      } finally {
+        if (reqId === requestIdRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+          setLoadingMore(false);
+          loadingMoreRef.current = false;
+        }
       }
+    },
+    [filter, apiFetch, handleAuthFailure, t]
+  );
 
-      if (response.status === 403) {
-        console.warn('⚠️ 403 Forbidden - You don\'t have permission');
-        setError("You don't have permission to view notifications.");
-        setLoading(false);
-        return;
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || `Failed to fetch notifications (Status: ${response.status})`);
-      }
-
-      const newNotifications = data.notifications || [];
-      console.log(`✅ Received ${newNotifications.length} notifications`);
-      
-      if (reset) {
-        setNotifications(newNotifications);
-        setUnreadCount(data.unreadCount || 0);
-        setHasMore(newNotifications.length === LIMIT);
-      } else {
-        setNotifications(prev => [...prev, ...newNotifications]);
-        setHasMore(newNotifications.length === LIMIT);
-        setPage(prev => prev + 1);
-      }
-    } catch (error) {
-      console.error('❌ Error fetching notifications:', error);
-      setError(error.message || 'Failed to load notifications');
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-      setIsRetrying(false);
+  const pollUnread = useCallback(async () => {
+    if (
+      document.hidden ||
+      !hasLoadedRef.current ||
+      authExpiredRef.current ||
+      mutationsRef.current > 0 ||
+      pendingDeletesRef.current.size > 0
+    ) {
+      return;
     }
-  }, [validateAndGetToken, page, filter, typeFilter, logout]);
-
-  // ============================================
-  // FETCH UNREAD COUNT
-  // ============================================
-  const fetchUnreadCount = useCallback(async () => {
     try {
-      const token = await validateAndGetToken();
-      if (!token) return;
-
-      const response = await fetch(`${BASE_API}/api/notifications/unread-count`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.status === 401) {
-        console.warn('⚠️ 401 Unauthorized - Token may be invalid');
-        return;
-      }
-
-      const data = await response.json();
-      if (response.ok) {
-        setUnreadCount(data.count || 0);
-      }
-    } catch (error) {
-      console.error('Error fetching unread count:', error);
+      const res = await apiFetch("/api/notifications/unread-count");
+      if (!res.ok) return;
+      const data = await res.json();
+      const count = Number(data.count) || 0;
+      setUnreadCount(count);
+      if (count > baselineRef.current) setIncoming(count - baselineRef.current);
+      else { baselineRef.current = count; setIncoming(0); }
+    } catch (err) {
+      if (err instanceof AuthError) handleAuthFailure(err);
     }
-  }, [validateAndGetToken]);
+  }, [apiFetch, handleAuthFailure]);
 
-  // ============================================
-  // MARK SINGLE AS READ
-  // ============================================
-  const markAsRead = async (notificationId) => {
-    try {
-      setMarkingSingle(notificationId);
-      
-      const token = await validateAndGetToken();
-      if (!token) {
-        setError("Please login to mark notifications");
-        return;
-      }
+  const markAsRead = useCallback(
+    async (id) => {
+      const target = itemsRef.current.find((n) => n.id === id);
+      if (!target || target.read) return;
 
-      const response = await fetch(`${BASE_API}/api/notifications/${notificationId}/read`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+      const readAt = new Date().toISOString();
+      setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true, read_at: readAt } : n)));
+      setUnreadCount((c) => Math.max(0, c - 1));
+      baselineRef.current = Math.max(0, baselineRef.current - 1);
+
+      mutationsRef.current += 1;
+      try {
+        const res = await apiFetch(`/api/notifications/${id}/read`, { method: "PUT" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || t("notifMarkReadFailed"));
         }
-      });
-
-      if (response.status === 401) {
-        setError("Your session has expired. Please login again.");
-        return;
-      }
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setNotifications(prev => 
-          prev.map(n => 
-            n.id === notificationId 
-              ? { ...n, read: true, read_at: new Date().toISOString() }
-              : n
-          )
-        );
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      } else {
-        throw new Error(data.message || 'Failed to mark as read');
-      }
-    } catch (error) {
-      console.error('Error marking as read:', error);
-      setError(error.message);
-    } finally {
-      setMarkingSingle(null);
-    }
-  };
-
-  // ============================================
-  // MARK ALL AS READ
-  // ============================================
-  const markAllAsRead = async () => {
-    try {
-      setMarkingAll(true);
-      
-      const token = await validateAndGetToken();
-      if (!token) {
-        setError("Please login to mark notifications");
-        return;
-      }
-
-      const response = await fetch(`${BASE_API}/api/notifications/read-all`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+      } catch (err) {
+        if (err instanceof AuthError) {
+          handleAuthFailure(err);
+        } else {
+          setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: false, read_at: null } : n)));
+          setUnreadCount((c) => c + 1);
+          baselineRef.current += 1;
+          showToast(err.message || t("notifMarkReadFailed"), { tone: "error" });
         }
-      });
-
-      if (response.status === 401) {
-        setError("Your session has expired. Please login again.");
-        return;
+      } finally {
+        mutationsRef.current -= 1;
       }
+    },
+    [apiFetch, handleAuthFailure, showToast, t]
+  );
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setNotifications(prev => 
-          prev.map(n => ({ ...n, read: true, read_at: new Date().toISOString() }))
-        );
-        setUnreadCount(0);
-      } else {
-        throw new Error(data.message || 'Failed to mark all as read');
+  const markAllAsRead = useCallback(async () => {
+    if (markingAll) return;
+    setMarkingAll(true);
+    mutationsRef.current += 1;
+    try {
+      const res = await apiFetch("/api/notifications/read-all", { method: "PUT" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || t("notifMarkAllFailed"));
       }
-    } catch (error) {
-      console.error('Error marking all as read:', error);
-      setError(error.message);
+      const readAt = new Date().toISOString();
+      setItems((prev) => prev.map((n) => (n.read ? n : { ...n, read: true, read_at: readAt })));
+      setUnreadCount(0);
+      baselineRef.current = 0;
+      setIncoming(0);
+    } catch (err) {
+      if (err instanceof AuthError) handleAuthFailure(err);
+      else showToast(err.message, { tone: "error" });
     } finally {
+      mutationsRef.current -= 1;
       setMarkingAll(false);
     }
-  };
+  }, [markingAll, apiFetch, handleAuthFailure, showToast, t]);
 
-  // ============================================
-  // DELETE NOTIFICATION
-  // ============================================
-  const deleteNotification = async (notificationId) => {
-    try {
-      setDeleting(notificationId);
-      
-      const token = await validateAndGetToken();
-      if (!token) {
-        setError("Please login to delete notifications");
-        return;
+  const restoreItem = useCallback(({ item, index }) => {
+    setItems((prev) => {
+      if (prev.some((n) => n.id === item.id)) return prev;
+      const next = [...prev];
+      next.splice(Math.min(index, next.length), 0, item);
+      return next;
+    });
+    if (!item.read) {
+      setUnreadCount((c) => c + 1);
+      baselineRef.current += 1;
+    }
+  }, []);
+
+  const commitDelete = useCallback(
+    async (id) => {
+      const pending = pendingDeletesRef.current.get(id);
+      if (!pending) return;
+      pendingDeletesRef.current.delete(id);
+      try {
+        const res = await apiFetch(`/api/notifications/${id}`, { method: "DELETE" });
+        if (!res.ok && res.status !== 404) throw new Error("Delete failed");
+      } catch (err) {
+        if (err instanceof AuthError) {
+          handleAuthFailure(err);
+          return;
+        }
+        restoreItem(pending);
+        showToast(t("notifDeleteFailed"), { tone: "error" });
+      }
+    },
+    [apiFetch, handleAuthFailure, restoreItem, showToast, t]
+  );
+
+  const deleteNotification = useCallback(
+    (id) => {
+      const index = itemsRef.current.findIndex((n) => n.id === id);
+      if (index === -1) return;
+      const item = itemsRef.current[index];
+
+      setItems((prev) => prev.filter((n) => n.id !== id));
+      if (!item.read) {
+        setUnreadCount((c) => Math.max(0, c - 1));
+        baselineRef.current = Math.max(0, baselineRef.current - 1);
       }
 
-      const notification = notifications.find(n => n.id === notificationId);
-      
-      const response = await fetch(`${BASE_API}/api/notifications/${notificationId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const timer = setTimeout(() => commitDelete(id), UNDO_MS);
+      pendingDeletesRef.current.set(id, { timer, item, index });
+
+      showToast(t("notifDeleted"), {
+        actionLabel: t("undo"),
+        duration: UNDO_MS,
+        onAction: () => {
+          const pending = pendingDeletesRef.current.get(id);
+          if (!pending) return;
+          clearTimeout(pending.timer);
+          pendingDeletesRef.current.delete(id);
+          restoreItem(pending);
+        },
       });
+    },
+    [commitDelete, restoreItem, showToast, t]
+  );
 
-      if (response.status === 401) {
-        setError("Your session has expired. Please login again.");
-        return;
-      }
+  const handleOpen = useCallback(
+    (n) => {
+      if (!n.read) markAsRead(n.id);
+      if (n.action_url) navigateRef.current(n.action_url);
+    },
+    [markAsRead]
+  );
 
-      if (response.ok) {
-        setNotifications(prev => prev.filter(n => n.id !== notificationId));
-        if (notification && !notification.read) {
-          setUnreadCount(prev => Math.max(0, prev - 1));
-        }
-      }
-    } catch (error) {
-      console.error('Error deleting notification:', error);
-      setError(error.message);
-    } finally {
-      setDeleting(null);
-    }
+  const handleShowNew = () => {
+    setIncoming(0);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    loadNotifications(true, { silent: true });
   };
 
-  // ============================================
-  // HANDLE NOTIFICATION CLICK
-  // ============================================
-  const handleNotificationClick = (notification) => {
-    if (!notification.read) {
-      markAsRead(notification.id);
-    }
-    
-    if (notification.action_url) {
-      navigate(notification.action_url);
-    }
+  const handleRefresh = () => {
+    if (loading || refreshing) return;
+    loadNotifications(true, { silent: true });
   };
 
-  // ============================================
-  // HANDLE RETRY
-  // ============================================
-  const handleRetry = () => {
-    setIsRetrying(true);
-    setError(null);
-    fetchNotifications(true);
+  const resetFilters = () => {
+    setFilter("all");
+    setCategory("all");
   };
 
-  // ============================================
-  // HANDLE LOGIN REDIRECT
-  // ============================================
-  const handleLoginRedirect = () => {
-    navigate('/login');
-  };
+  useEffect(() => { loadNotifications(true); }, [loadNotifications]);
 
-  // ============================================
-  // INFINITE SCROLL OBSERVER
-  // ============================================
   useEffect(() => {
-    if (loading || loadingMore || !hasMore || error) return;
+    const node = sentinelRef.current;
+    if (!node || loading || loadingMore || !hasMore || error || authExpired) return;
 
     const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore) {
-          fetchNotifications(false);
-        }
-      },
-      { threshold: 0.1 }
+      (entries) => { if (entries[0].isIntersecting) loadNotifications(false); },
+      { rootMargin: "200px" }
     );
-
-    if (observerRef.current) {
-      observer.observe(observerRef.current);
-    }
-
+    observer.observe(node);
     return () => observer.disconnect();
-  }, [loading, loadingMore, hasMore, fetchNotifications, error]);
-
-  // ============================================
-  // EFFECTS
-  // ============================================
-  useEffect(() => {
-    fetchNotifications(true);
-  }, [filter, typeFilter, fetchNotifications]);
+  }, [loading, loadingMore, hasMore, error, authExpired, items.length, loadNotifications]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchUnreadCount();
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }, [fetchUnreadCount]);
+    const interval = setInterval(pollUnread, POLL_MS);
+    const onVisible = () => { if (!document.hidden) pollUnread(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [pollUnread]);
 
-  // ============================================
-  // GET UNIQUE TYPES FOR FILTER
-  // ============================================
-  const getUniqueTypes = () => {
-    const types = notifications.map(n => n.type);
-    return [...new Set(types)];
-  };
+  useEffect(() => {
+    const id = setInterval(() => setTick((v) => v + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
 
-  // ============================================
-  // LOADING STATE
-  // ============================================
+  useEffect(() => {
+    if (!hasLoaded) return;
+    const id = setTimeout(() => setRevealing(false), 1500);
+    return () => clearTimeout(id);
+  }, [hasLoaded]);
+
+  useEffect(() => {
+    if (!hasLoaded || loading || authExpired) return;
+    const prev = prevUnreadRef.current;
+    prevUnreadRef.current = unreadCount;
+
+    if (unreadCount === 0) {
+      setStreak(bumpStreak());
+      if (prev !== null && prev > 0) {
+        setCelebrate(true);
+        clearTimeout(celebrateTimerRef.current);
+        celebrateTimerRef.current = setTimeout(() => setCelebrate(false), 6000);
+      }
+    }
+  }, [unreadCount, hasLoaded, loading, authExpired]);
+
+  useEffect(() => {
+    const pendingDeletes = pendingDeletesRef.current;
+    return () => {
+      pendingDeletes.forEach(({ timer }, id) => {
+        clearTimeout(timer);
+        apiFetch(`/api/notifications/${id}`, { method: "DELETE" }).catch(() => {});
+      });
+      pendingDeletes.clear();
+      clearTimeout(toastTimerRef.current);
+      clearTimeout(celebrateTimerRef.current);
+    };
+  }, [apiFetch]);
+
+  // ─── Derived ─────────────────────────────────
+
+  const visible = useMemo(
+    () =>
+      items.filter((n) => {
+        if (filter === "read" && !n.read) return false;
+        if (category !== "all" && metaFor(n.type).category !== category) return false;
+        return true;
+      }),
+    [items, filter, category, metaFor]
+  );
+
+  const attention = useMemo(
+    () => (filter === "read" ? [] : visible.filter((n) => needsAttention(n, metaFor(n.type))).slice(0, 3)),
+    [visible, filter, metaFor]
+  );
+
+  const rest = useMemo(() => {
+    const pinned = new Set(attention.map((n) => n.id));
+    return visible.filter((n) => !pinned.has(n.id));
+  }, [visible, attention]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => groupByDay(rest, t), [rest, tick, t]);
+
+  const attentionTotal = useMemo(
+    () => items.filter((n) => needsAttention(n, metaFor(n.type))).length,
+    [items, metaFor]
+  );
+
+  const categoryUnread = useMemo(() => {
+    const counts = {};
+    items.forEach((n) => {
+      if (!n.read) {
+        const c = metaFor(n.type).category;
+        counts[c] = (counts[c] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [items, metaFor]);
+
+  const streakInfo = useMemo(() => {
+    const today = dayKey();
+    const yesterday = dayKey(new Date(Date.now() - 86400000));
+    if (streak.last === today) return { count: streak.count, atRisk: false };
+    if (streak.last === yesterday) return { count: streak.count, atRisk: true };
+    return { count: 0, atRisk: false };
+  }, [streak, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const subline = (() => {
+    if (authExpired) return t("sublineExpired");
+    if (!hasLoaded) return t("sublineLoaded");
+    if (unreadCount === 0) return t("sublineCaughtUp");
+    if (streakInfo.atRisk && streakInfo.count >= 2) {
+      return t("sublineKeepStreak").replace("{n}", streakInfo.count);
+    }
+    if (attentionTotal > 0) {
+      return t("sublineUnreadAttention")
+        .replace("{unread}", unreadCount)
+        .replace("{attention}", attentionTotal);
+    }
+    return t("sublineUnread").replace("{n}", unreadCount);
+  })();
+
+  const emptyCopy = (() => {
+    if (filter === "unread") return { title: t("emptyUnreadTitle"), body: t("emptyUnreadBody") };
+    if (filter === "read") return { title: t("emptyReadTitle"), body: t("emptyReadBody") };
+    if (category !== "all") {
+      const label = t(CATEGORIES.find((c) => c.id === category)?.labelKey).toLowerCase();
+      return {
+        title: t("emptyCategoryTitle").replace("{label}", label),
+        body: t("emptyCategoryBody"),
+      };
+    }
+    return { title: t("emptyAllTitle"), body: t("emptyAllBody") };
+  })();
+
+  let enterCounter = 0;
+  const nextEnter = () => (revealing && enterCounter < 8 ? enterCounter++ : undefined);
+
+  const renderCard = (n, featured = false) => (
+    <NotificationCard
+      key={n.id}
+      n={n}
+      featured={featured}
+      timeLabel={formatTime(n.created_at, t)}
+      enterIndex={nextEnter()}
+      onOpen={handleOpen}
+      onMarkRead={markAsRead}
+      onDelete={deleteNotification}
+      meta={metaFor(n.type)}
+      t={t}
+    />
+  );
+
+  // ─── Body ─────────────────────────────────
+  let body;
+
   if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 text-purple-500 animate-spin" />
-          <p className="text-zinc-400">Loading notifications...</p>
-        </div>
-      </div>
+    body = <NotificationSkeleton />;
+  } else if (authExpired) {
+    body = (
+      <StateCard
+        icon={LogOut}
+        iconClass="bg-yellow-500/10 text-yellow-400"
+        title={t("sessionExpiredTitle")}
+        body={t("sessionExpiredBody")}
+      >
+        <button
+          type="button"
+          onClick={() => navigate("/login")}
+          className="px-6 py-2.5 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-500 transition-colors"
+        >
+          {t("loginAction")}
+        </button>
+      </StateCard>
     );
-  }
-
-  // ============================================
-  // ERROR STATE WITH LOGIN OPTION
-  // ============================================
-  if (error && !notifications.length) {
-    const isAuthError = error.includes('session') || error.includes('login');
-    
-    return (
-      <div className="min-h-screen bg-black pb-4">
-        <div className="bg-gradient-to-b from-purple-900/30 to-black px-6 pt-6 pb-4">
-          <h1 className="text-2xl font-bold text-white">Notifications</h1>
-          <p className="text-sm text-zinc-400">Stay updated with your bookings</p>
-        </div>
-        <div className="px-6 mt-20 text-center">
-          <div className={`rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 ${
-            isAuthError ? 'bg-yellow-500/10' : 'bg-red-500/10'
-          }`}>
-            {isAuthError ? (
-              <LogOut className="w-10 h-10 text-yellow-400" />
-            ) : (
-              <AlertCircle className="w-10 h-10 text-red-400" />
-            )}
-          </div>
-          <h3 className="text-lg font-semibold text-white mb-2">
-            {isAuthError ? 'Session Expired' : 'Oops! Something went wrong'}
-          </h3>
-          <p className="text-sm text-zinc-500">{error}</p>
-          <div className="flex items-center justify-center gap-3 mt-4">
-            {isAuthError ? (
-              <button 
-                onClick={handleLoginRedirect}
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Login Again
-              </button>
-            ) : (
-              <button 
-                onClick={handleRetry}
-                disabled={isRetrying}
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
-              >
-                {isRetrying ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  'Retry'
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+  } else if (error && items.length === 0) {
+    body = (
+      <StateCard
+        icon={AlertCircle}
+        iconClass="bg-red-500/10 text-red-400"
+        title={t("loadErrorTitle")}
+        body={error}
+      >
+        <button
+          type="button"
+          onClick={() => loadNotifications(true)}
+          className="px-6 py-2.5 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-500 transition-colors"
+        >
+          {t("tryAgain")}
+        </button>
+      </StateCard>
     );
-  }
-
-  // ============================================
-  // MAIN RENDER
-  // ============================================
-  return (
-    <div className="min-h-screen bg-black pb-4">
-      {/* Header */}
-      <div className="bg-gradient-to-b from-purple-900/30 to-black px-6 pt-6 pb-4 sticky top-0 z-10 backdrop-blur-sm">
-        <div className="flex items-center justify-between mb-1">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Notifications</h1>
-            <p className="text-sm text-zinc-400">Stay updated with your bookings</p>
-          </div>
-          {unreadCount > 0 && (
-            <div className="bg-purple-500 text-white text-xs font-semibold px-3 py-1 rounded-full animate-pulse">
-              {unreadCount} new
+  } else if (visible.length === 0 && !hasMore) {
+    body = (
+      <StateCard
+        icon={Bell}
+        iconClass="bg-zinc-900 text-zinc-600"
+        title={emptyCopy.title}
+        body={emptyCopy.body}
+      >
+        {(filter !== "all" || category !== "all") && (
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="text-sm font-medium text-purple-300 hover:text-purple-200"
+          >
+            {t("showEverything")}
+          </button>
+        )}
+      </StateCard>
+    );
+  } else {
+    body = (
+      <>
+        {attention.length > 0 && (
+          <section aria-labelledby="gz-attention" className="mb-8">
+            <div className="flex items-center gap-2.5 mb-3">
+              <span className="relative flex w-2.5 h-2.5" aria-hidden="true">
+                <span className="gz-ring absolute inset-0 rounded-full bg-purple-500" />
+                <span className="relative w-2.5 h-2.5 rounded-full bg-purple-400" />
+              </span>
+              <h2 id="gz-attention" className="text-sm font-semibold text-white">
+                {t("needsAttention")}
+              </h2>
             </div>
-          )}
-        </div>
+            <div className="space-y-3">{attention.map((n) => renderCard(n, true))}</div>
+          </section>
+        )}
 
-        {/* Filter Bar */}
-        <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1 scrollbar-hide">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-              filter === 'all'
-                ? 'bg-purple-600 text-white'
-                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setFilter('unread')}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-              filter === 'unread'
-                ? 'bg-purple-600 text-white'
-                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-            }`}
-          >
-            Unread {unreadCount > 0 && `(${unreadCount})`}
-          </button>
-          <button
-            onClick={() => setFilter('read')}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-              filter === 'read'
-                ? 'bg-purple-600 text-white'
-                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-            }`}
-          >
-            Read
-          </button>
-          
-          {/* Type filter dropdown */}
-          {getUniqueTypes().length > 0 && (
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-700 focus:outline-none focus:border-purple-500"
-            >
-              <option value="all">All Types</option>
-              {getUniqueTypes().map(type => (
-                <option key={type} value={type}>
-                  {getReadableType(type)}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+        {groups.map((g) => (
+          <section key={g.label} className="mb-6">
+            <h2 className="text-sm font-semibold text-zinc-400 mb-3">{g.label}</h2>
+            <div className="space-y-3">{g.items.map((n) => renderCard(n))}</div>
+          </section>
+        ))}
 
-        {/* Actions */}
-        <div className="flex items-center justify-between mt-3">
-          <div className="flex items-center gap-3">
-            {unreadCount > 0 && (
-              <button 
-                onClick={markAllAsRead}
-                disabled={markingAll}
-                className="flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {markingAll ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Check className="w-4 h-4" />
-                )}
-                {markingAll ? 'Marking...' : 'Mark all as read'}
-              </button>
-            )}
-          </div>
-          <span className="text-xs text-zinc-600">
-            {notifications.length} notification{notifications.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-      </div>
-
-      {/* Notifications List */}
-      <div className="px-6 mt-2 space-y-3">
-        {notifications.length > 0 ? (
-          <>
-            {notifications.map((notification, index) => {
-              const Icon = getNotificationIcon(notification.type);
-              const isUnread = !notification.read;
-              const isMarking = markingSingle === notification.id;
-              const isDeleting = deleting === notification.id;
-              
-              return (
-                <div
-                  key={notification.id}
-                  ref={index === notifications.length - 1 ? observerRef : null}
-                  onClick={() => handleNotificationClick(notification)}
-                  className={`bg-zinc-900 border rounded-2xl p-4 transition-all cursor-pointer ${
-                    isUnread
-                      ? "border-purple-500/50 bg-purple-500/5 hover:border-purple-500/70"
-                      : "border-zinc-800 hover:border-zinc-700"
-                  }`}
-                >
-                  <div className="flex gap-4">
-                    {/* Icon */}
-                    <div
-                      className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${getIconColor(
-                        notification.type
-                      )}`}
-                    >
-                      <Icon className="w-6 h-6" />
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-white truncate">
-                              {notification.title}
-                            </h3>
-                            {isUnread && (
-                              <div className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0" />
-                            )}
-                          </div>
-                          <span className="text-xs text-zinc-500">
-                            {getReadableType(notification.type)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Message */}
-                      <p className="text-sm text-zinc-400 mt-1">
-                        {notification.message}
-                      </p>
-
-                      {/* Footer */}
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center gap-3">
-                          <p className="text-xs text-zinc-600">
-                            {formatTime(notification.created_at)}
-                          </p>
-                          {notification.priority === 'high' && (
-                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${getPriorityColor(notification.priority)}`}>
-                              Urgent
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Action buttons */}
-                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          {isUnread && (
-                            <button
-                              onClick={() => markAsRead(notification.id)}
-                              disabled={isMarking || isDeleting}
-                              className="p-1.5 rounded-lg text-zinc-500 hover:text-purple-400 hover:bg-purple-500/10 transition-colors disabled:opacity-50"
-                              title="Mark as read"
-                            >
-                              {isMarking ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Check className="w-4 h-4" />
-                              )}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => deleteNotification(notification.id)}
-                            disabled={isDeleting || isMarking}
-                            className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                            title="Delete"
-                          >
-                            {isDeleting ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-4 h-4" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Loading more indicator */}
-            {loadingMore && (
-              <div className="flex justify-center py-4">
-                <Loader2 className="w-6 h-6 text-purple-500 animate-spin" />
-              </div>
-            )}
-
-            {/* End of list */}
-            {!hasMore && notifications.length > 0 && (
-              <div className="text-center py-6">
-                <p className="text-sm text-zinc-600">You're all caught up! 🎉</p>
-              </div>
-            )}
-          </>
-        ) : (
-          // Empty State
-          <div className="px-6 mt-20 text-center">
-            <div className="bg-zinc-900 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-              <Bell className="w-10 h-10 text-zinc-700" />
-            </div>
-            <h3 className="text-lg font-semibold text-white mb-2">
-              {filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
-            </h3>
-            <p className="text-sm text-zinc-500">
-              {filter === 'unread' 
-                ? "You've read all your notifications. Great job! 👏"
-                : "We'll notify you when something important happens"}
-            </p>
-            {filter !== 'all' && (
-              <button
-                onClick={() => setFilter('all')}
-                className="mt-4 text-sm text-purple-400 hover:text-purple-300"
-              >
-                View all notifications
-              </button>
-            )}
+        {hasMore && (
+          <div ref={sentinelRef} className="flex justify-center py-6 min-h-[56px]">
+            {loadingMore && <Loader2 className="w-6 h-6 text-purple-500 animate-spin" />}
           </div>
         )}
-      </div>
+
+        {error && items.length > 0 && (
+          <div className="text-center py-4">
+            <p className="text-sm text-zinc-500 mb-2">{error}</p>
+            <button
+              type="button"
+              onClick={() => loadNotifications(false)}
+              className="text-sm font-medium text-purple-300 hover:text-purple-200"
+            >
+              {t("tryAgain")}
+            </button>
+          </div>
+        )}
+
+        {!hasMore && visible.length > 0 && (
+          <p className="text-center text-sm text-zinc-600 py-6">{t("thatsEverything")}</p>
+        )}
+      </>
+    );
+  }
+
+  // ─── Render ─────────────────────────────────
+  return (
+    <div className="min-h-screen bg-black text-white pb-24">
+      <style>{STYLES}</style>
+
+      <header className="sticky top-0 z-20 bg-black/85 backdrop-blur-md border-b border-zinc-900">
+        <div className="bg-gradient-to-b from-purple-900/30 to-transparent px-6 pt-6 pb-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-white">{t("notificationsTitle")}</h1>
+              <p className="text-sm text-zinc-400 mt-0.5">{subline}</p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {streakInfo.count >= 2 && (
+                <div
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-500/15 text-orange-300 text-xs font-semibold"
+                  title={t("streakTooltip").replace("{n}", streakInfo.count)}
+                >
+                  <Flame className="w-3.5 h-3.5" />
+                  {streakInfo.count}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={loading || refreshing}
+                className="p-2 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                aria-label={t("refresh")}
+                title={t("refresh")}
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+              </button>
+            </div>
+          </div>
+
+          {incoming > 0 && !authExpired && (
+            <button
+              type="button"
+              onClick={handleShowNew}
+              className="gz-pop mt-3 w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-300"
+            >
+              {incoming === 1
+                ? t("showOneNew").replace("{n}", incoming)
+                : t("showManyNew").replace("{n}", incoming)}
+            </button>
+          )}
+
+          <div className="flex items-center justify-between gap-3 mt-4">
+            <div role="tablist" aria-label={t("filterByReadState")} className="flex bg-zinc-900 rounded-full p-1">
+              {FILTERS.map((f) => {
+                const active = filter === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setFilter(f.id)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                      active ? "bg-purple-600 text-white" : "text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    {t(f.labelKey)}
+                    {f.id === "unread" && unreadCount > 0 && ` (${unreadCount})`}
+                  </button>
+                );
+              })}
+            </div>
+
+            {unreadCount > 0 && !authExpired && (
+              <button
+                type="button"
+                onClick={markAllAsRead}
+                disabled={markingAll}
+                className="flex items-center gap-1.5 text-sm text-purple-300 hover:text-purple-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded"
+              >
+                {markingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
+                {markingAll ? t("markingAll") : t("markAllAsRead")}
+              </button>
+            )}
+          </div>
+
+          <div className="gz-noscroll flex items-center gap-2 mt-3 overflow-x-auto -mx-6 px-6 pb-1">
+            {CATEGORIES.map((c) => {
+              const active = category === c.id;
+              const count = c.id === "all" ? 0 : categoryUnread[c.id] || 0;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setCategory(c.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                    active
+                      ? "bg-white text-black border-white"
+                      : "bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700"
+                  }`}
+                >
+                  {t(c.labelKey)}
+                  {count > 0 && (
+                    <span
+                      className={`min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold flex items-center justify-center ${
+                        active ? "bg-black text-white" : "bg-purple-500 text-white"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </header>
+
+      <main className="px-6 pt-5">
+        {celebrate && !loading && <CaughtUpBanner streak={streakInfo.count} t={t} />}
+        {body}
+      </main>
+
+      {toast && (
+        <div
+          className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4 pointer-events-none"
+          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        >
+          <div
+            key={toast.id}
+            role="status"
+            className={`gz-pop pointer-events-auto flex items-center gap-3 rounded-full pl-5 pr-2 py-2 shadow-xl border text-sm ${
+              toast.tone === "error"
+                ? "bg-red-950 border-red-500/40 text-red-100"
+                : "bg-zinc-900 border-zinc-700 text-white"
+            }`}
+          >
+            <span>{toast.message}</span>
+            {toast.actionLabel && (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.onAction?.();
+                  clearTimeout(toastTimerRef.current);
+                  setToast(null);
+                }}
+                className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 font-semibold text-purple-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+              >
+                {toast.actionLabel}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+export default NotificationsScreen;

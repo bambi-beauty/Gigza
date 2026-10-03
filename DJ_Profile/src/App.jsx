@@ -9,6 +9,7 @@ import { DJTopNav } from "./DJTopNav";
 import { DJCalendarScreen } from "./DJCalendarScreen";
 import { DJPortfolioEditor } from "./DJPortfolioEditor";
 import { DJRequestsScreen } from "./DJRequestsScreen";
+import { DJProfileScreen } from "./DJProfileScreen";
 import { EarningsDashboardScreen } from "./EarningsDashboardScreen";
 import { DJProvider } from "../API/DJContext";
 
@@ -55,16 +56,7 @@ function DJLayout({ children }) {
   );
 }
 
-// ✅ Wrapper component to provide DJ context
-function AppWithProviders() {
-  return (
-    <DJProvider>
-      <App />
-    </DJProvider>
-  );
-}
-
-export default function App() {
+function AppRoutes() {
   const [loading, setLoading] = useState(true);
   const [authState, setAuthState] = useState({
     isAuthenticated: false,
@@ -206,6 +198,17 @@ export default function App() {
           }
         />
 
+        <Route
+          path="/dj-profile"
+          element={
+            <ProtectedRoute>
+              <DJLayout>
+                <DJProfileScreen />
+              </DJLayout>
+            </ProtectedRoute>
+          }
+        />
+
         {/* ✅ Catch all - redirect based on auth status */}
         <Route 
           path="*" 
@@ -217,5 +220,14 @@ export default function App() {
         />
       </Routes>
     </Router>
+  );
+}
+
+// ✅ Default export wraps everything in the DJ context
+export default function App() {
+  return (
+    <DJProvider>
+      <AppRoutes />
+    </DJProvider>
   );
 }

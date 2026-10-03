@@ -2,6 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: black;
+/* ============================================================
+   THEME BRIDGE — makes Tailwind classes respect CSS vars
+   ============================================================ */
+
+html, body, #root {
+  background: var(--bg, #050507);
+  color: var(--text, #fafafa);
+  font-family: var(--font-family, 'Inter', system-ui, -apple-system, sans-serif);
+  min-height: 100vh;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ---- Backgrounds ---- */
+.bg-zinc-950,
+.bg-zinc-900,
+.bg-black {
+  background-color: var(--bg) !important;
+}
+
+.bg-zinc-800,
+.bg-white\/5,
+.bg-white\/10 {
+  background-color: var(--card) !important;
+}
+
+.bg-white\/20 {
+  background-color: var(--card-hover) !important;
+}
+
+/* ---- Text ---- */
+.text-white { color: var(--text) !important; }
+
+.text-zinc-100,
+.text-zinc-200,
+.text-zinc-300 { color: var(--text) !important; }
+
+.text-zinc-400 { color: var(--text-dim) !important; }
+
+.text-zinc-500,
+.text-zinc-600 { color: var(--text-mute) !important; }
+
+/* ---- Borders ---- */
+.border-zinc-800,
+.border-zinc-700,
+.border-white\/10,
+.border-white\/5 {
+  border-color: var(--border) !important;
+}
+
+/* ---- Accent (purple) ---- */
+.text-purple-400,
+.text-purple-500,
+.text-purple-600 { color: var(--accent) !important; }
+
+.bg-purple-500,
+.bg-purple-600,
+.bg-purple-500\/20 { background-color: var(--accent) !important; }
+
+.border-purple-500,
+.border-purple-500\/20 { border-color: var(--accent) !important; }
+
+/* ---- Smooth theme transitions on everything ---- */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
 }

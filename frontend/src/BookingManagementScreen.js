@@ -1,430 +1,571 @@
-// BookingManagementScreen.js
-import { useState, useEffect } from "react";
+// BookingManagementScreen.jsx
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Calendar, Clock, MapPin, Star, Loader2, AlertCircle, CheckCircle, XCircle, Clock as ClockIcon, Bell } from "lucide-react";
+import {
+  Calendar, Clock, Users, Timer, Loader2, AlertCircle, CheckCircle, XCircle,
+  Bell, ArrowLeft, X, Headphones,
+} from "lucide-react";
 import { getUserBookings, cancelBooking } from "./services/bookingService";
 import { useUser } from "./UserContext/ThisUserContext";
 import { useSocket } from "./UserContext/SocketContext";
+import { useTranslation } from "./hooks/useTranslation";
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+const btnPrimary =
+  "rounded-lg bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white font-medium " +
+  "shadow-lg shadow-purple-900/30 hover:from-purple-500 hover:to-fuchsia-500 transition " +
+  "focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950";
+
+const btnGhost =
+  "rounded-lg border border-white/10 text-zinc-300 hover:text-white hover:bg-white/5 hover:border-white/20 transition " +
+  "focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400";
+
+// Status styles — labels become translation keys
+const STATUS_STYLES = {
+  confirmed: { labelKey: "statusConfirmed", classes: "bg-green-500/15 text-green-400 border-green-500/30", Icon: CheckCircle },
+  pending:   { labelKey: "statusPending",   classes: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30", Icon: Clock },
+  cancelled: { labelKey: "statusCancelled", classes: "bg-red-500/15 text-red-400 border-red-500/30", Icon: XCircle },
+  completed: { labelKey: "statusCompleted", classes: "bg-blue-500/15 text-blue-400 border-blue-500/30", Icon: CheckCircle },
+};
+
+const TABS = [
+  { key: "upcoming",  labelKey: "tabUpcoming",  match: (s) => s === "pending" || s === "confirmed" },
+  { key: "completed", labelKey: "tabCompleted", match: (s) => s === "completed" },
+  { key: "cancelled", labelKey: "tabCancelled", match: (s) => s === "cancelled" },
+  { key: "all",       labelKey: "tabAll",       match: () => true },
+];
+
+const EMPTY_COPY = {
+  upcoming:  { titleKey: "emptyUpcomingTitle",  bodyKey: "emptyUpcomingBody" },
+  completed: { titleKey: "emptyCompletedTitle", bodyKey: "emptyCompletedBody" },
+  cancelled: { titleKey: "emptyCancelledTitle", bodyKey: "emptyCancelledBody" },
+  all:       { titleKey: "emptyAllTitle",       bodyKey: "emptyAllBody" },
+};
+
+const normalizeBooking = (b) => {
+  const hours = Number(b.duration_hours ?? b.durationHours) || 0;
+  const explicitTotal = Number(b.total_price ?? b.totalPrice);
+  const perHour = Number(b.price_per_hour ?? b.pricePerHour) || 0;
+
+  return {
+    raw: b,
+    id: b.booking_id || b.id,
+    djId: b.dj_id || b.djId,
+    djName: b.dj_name || b.dj?.name || "DJ",
+    status: String(b.booking_status || b.status || "pending").toLowerCase(),
+    eventType: b.event_type || b.eventType || "Event",
+    date: b.event_date || b.eventDate || null,
+    time: b.event_time || b.eventTime || null,
+    hours,
+    guests: Number(b.number_of_guests ?? b.numberOfGuests) || 0,
+    total: explicitTotal > 0 ? explicitTotal : perHour * hours,
+  };
+};
+
+const parseDate = (value) => {
+  if (!value) return null;
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value);
+  return isNaN(d) ? null : d;
+};
+
+const formatDate = (value, t) => {
+  if (!value) return t("dateTBD");
+  const d = parseDate(value);
+  if (!d) return t("dateTBD");
+  return d.toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+};
+
+const formatTime = (value, t) => {
+  if (!value) return t("timeTBD");
+  if (typeof value === "string" && value.includes(":") && !value.includes("T")) return value.substring(0, 5);
+  const d = new Date(value);
+  return isNaN(d) ? t("timeTBD") : d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+};
+
+const friendlyError = (err, fallback, map) => {
+  const status = err?.status;
+  const msg = err?.message || "";
+  for (const [code, text] of Object.entries(map)) {
+    if (status === Number(code) || msg.includes(code)) return text;
+  }
+  return msg && !msg.includes("fetch") ? msg : fallback;
+};
+
+/* ------------------------------------------------------------------ */
+/* Small components                                                    */
+/* ------------------------------------------------------------------ */
+
+function StatusBadge({ status, t }) {
+  const style = STATUS_STYLES[status] || {
+    labelKey: null,
+    fallbackLabel: status,
+    classes: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
+    Icon: null,
+  };
+  const { Icon } = style;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold shrink-0 ${style.classes}`}>
+      {Icon && <Icon className="w-3.5 h-3.5" />}
+      {style.labelKey ? t(style.labelKey) : style.fallbackLabel}
+    </span>
+  );
+}
+
+function BookingCard({ booking, cancelling, onCancel, t }) {
+  const { id, djId, djName, status, eventType, date, time, hours, guests, total } = booking;
+  const canCancel = status === "pending" || status === "confirmed";
+
+  const details = [
+    { Icon: Calendar, text: formatDate(date, t) },
+    { Icon: Clock,    text: formatTime(time, t) },
+    { Icon: Timer,    text: hours ? `${hours} ${hours === 1 ? t("hour") : t("hours")}` : t("durationTBD") },
+    { Icon: Users,    text: `${guests} ${guests === 1 ? t("guest") : t("guests")}` },
+  ];
+
+  return (
+    <article className="bg-zinc-900 border border-white/10 rounded-2xl p-5 hover:border-white/25 transition">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center shadow-lg shadow-purple-900/30 shrink-0">
+            <span className="text-white font-bold text-lg">{djName.charAt(0).toUpperCase()}</span>
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-white text-lg truncate">{djName}</h3>
+            <p className="text-sm text-purple-300 truncate">{eventType}</p>
+          </div>
+        </div>
+        <StatusBadge status={status} t={t} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 bg-white/5 border border-white/5 rounded-xl p-4 mb-4">
+        {details.map(({ Icon, text }, i) => (
+          <div key={i} className="flex items-center gap-2 min-w-0">
+            <Icon className="w-4 h-4 text-purple-400 shrink-0" />
+            <span className="text-sm text-zinc-300 truncate">{text}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/10">
+        <span className="text-zinc-500 text-sm">{t("totalPrice")}</span>
+        <span className="text-white font-bold text-xl">R{total.toLocaleString()}</span>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        {status === "completed" && (
+          <Link to={`/review/${id}`} className={`${btnPrimary} flex-1 min-w-[8rem] py-2.5 text-sm text-center`}>
+            {t("leaveReview")}
+          </Link>
+        )}
+        {canCancel && (
+          <button
+            onClick={() => onCancel(booking)}
+            disabled={cancelling}
+            className="flex-1 min-w-[8rem] rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 py-2.5 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+          >
+            {cancelling ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : t("cancelBooking")}
+          </button>
+        )}
+        <Link to={`/dj/${djId}`} className={`${btnGhost} flex-1 min-w-[8rem] py-2.5 text-sm text-center`}>
+          {t("viewDJProfile")}
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+function CancelDialog({ booking, busy, onConfirm, onClose, t }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && !busy && onClose();
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [busy, onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={() => !busy && onClose()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cancel-title"
+    >
+      <div
+        className="bg-zinc-900 w-full max-w-md rounded-2xl border border-white/10 shadow-2xl shadow-black/60 p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded-xl bg-red-500/10 shrink-0">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+          </div>
+          <div>
+            <h2 id="cancel-title" className="font-semibold text-lg">{t("cancelDialogTitle")}</h2>
+            <p className="text-zinc-400 text-sm mt-1">
+              {t("cancelDialogBodyPre")}{" "}
+              <span className="text-white">{booking.djName}</span>{" "}
+              {t("cancelDialogBodyOn")} {formatDate(booking.date, t)} {t("cancelDialogBodyPost")}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} disabled={busy} className={`${btnGhost} flex-1 py-2.5 text-sm disabled:opacity-50`}>
+            {t("keepBooking")}
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className="flex-1 rounded-lg bg-red-600 hover:bg-red-500 text-white py-2.5 text-sm font-medium transition disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : t("yesCancel")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BookingSkeletons() {
+  return (
+    <div className="space-y-4">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="bg-zinc-900 border border-white/10 rounded-2xl p-5 animate-pulse">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-xl bg-zinc-800" />
+            <div className="space-y-2 flex-1">
+              <div className="h-4 bg-zinc-800 rounded-full w-1/3" />
+              <div className="h-3 bg-zinc-800 rounded-full w-1/4" />
+            </div>
+          </div>
+          <div className="h-24 bg-zinc-800 rounded-xl mb-4" />
+          <div className="h-10 bg-zinc-800 rounded-lg" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Screen                                                              */
+/* ------------------------------------------------------------------ */
 
 export function BookingManagementScreen() {
-  const { user, getToken } = useUser();
-  const { socket, isConnected, notifications, unreadCount, markAllAsRead, setNotifications, setUnreadCount } = useSocket();
+  const { getToken } = useUser();
+  const { socket, isConnected, notifications, unreadCount, markAllAsRead } = useSocket();
+  const { t } = useTranslation();
+
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [cancellingId, setCancellingId] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [activeTab, setActiveTab] = useState("upcoming");
   const [showNotifications, setShowNotifications] = useState(false);
+  const [pendingCancel, setPendingCancel] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
 
-  // Fetch bookings from backend
-  const fetchBookings = async () => {
-    setLoading(true);
-    setError(null);
-    
-    const token = getToken();
-    
-    try {
-      console.log("🔑 Token check:", {
-        hasToken: !!token,
-        user: user ? { id: user.userid || user.id, role: user.role } : 'no user'
-      });
-      
-      if (!token) {
-        setError("Please log in to view your bookings");
-        setBookings([]);
-        setLoading(false);
-        return;
-      }
+  const fetchBookings = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) setLoading(true);
+      setError(null);
 
-      console.log("📡 Fetching bookings from API...");
-      const data = await getUserBookings();
-      console.log("📡 Bookings received:", data);
-      
-      // Handle response
-      if (data.success && data.bookings) {
-        setBookings(data.bookings);
-      } else if (data.bookings) {
-        setBookings(data.bookings);
-      } else if (Array.isArray(data)) {
-        setBookings(data);
-      } else {
-        setBookings([]);
-        if (data.message) {
-          setError(data.message);
+      try {
+        if (!getToken()) {
+          setError(t("loginToViewBookings"));
+          setBookings([]);
+          return;
         }
+
+        const data = await getUserBookings();
+
+        if (Array.isArray(data)) {
+          setBookings(data);
+        } else if (data?.bookings) {
+          setBookings(data.bookings);
+        } else {
+          setBookings([]);
+          if (data?.message) setError(data.message);
+        }
+      } catch (err) {
+        console.error("Error fetching bookings:", err);
+        setError(
+          friendlyError(err, t("bookingsLoadFailed"), {
+            401: t("sessionExpiredMsg"),
+            403: t("noPermissionBookings"),
+            404: t("bookingsServiceNotFound"),
+            NetworkError: t("networkError"),
+          })
+        );
+        if (!silent) setBookings([]);
+      } finally {
+        if (!silent) setLoading(false);
       }
-    } catch (err) {
-      console.error("❌ Error fetching bookings:", err);
-      
-      let errorMessage = err.message || "Failed to load bookings. Please try again.";
-      
-      if (err.message?.includes("401") || err.status === 401) {
-        errorMessage = "Session expired. Please log in again.";
-      } else if (err.message?.includes("403") || err.status === 403) {
-        errorMessage = "You don't have permission to view bookings.";
-      } else if (err.message?.includes("404") || err.status === 404) {
-        errorMessage = "Bookings service not found. Please try again later.";
-      } else if (err.message?.includes("NetworkError") || err.message?.includes("fetch")) {
-        errorMessage = "Cannot connect to server. Please check your internet connection.";
-      }
-      
-      setError(errorMessage);
-      setBookings([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ✅ Listen for real-time booking notifications
-  useEffect(() => {
-    if (!socket || !isConnected) {
-      console.log('🔌 Socket not connected for booking management');
-      return;
-    }
-
-    console.log('👂 Setting up booking management notification listeners...');
-
-    // Handle booking confirmed
-    const handleBookingConfirmed = (data) => {
-      console.log('📬 Booking confirmed in management:', data);
-      fetchBookings(); // Refresh bookings to show updated status
-    };
-
-    // Handle booking cancelled
-    const handleBookingCancelled = (data) => {
-      console.log('📬 Booking cancelled in management:', data);
-      fetchBookings();
-    };
-
-    // Handle booking completed
-    const handleBookingCompleted = (data) => {
-      console.log('📬 Booking completed in management:', data);
-      fetchBookings();
-    };
-
-    // Handle new booking
-    const handleBookingCreated = (data) => {
-      console.log('📬 New booking created in management:', data);
-      fetchBookings();
-    };
-
-    socket.on('booking:confirmed', handleBookingConfirmed);
-    socket.on('booking:cancelled', handleBookingCancelled);
-    socket.on('booking:completed', handleBookingCompleted);
-    socket.on('booking:created', handleBookingCreated);
-
-    return () => {
-      socket.off('booking:confirmed', handleBookingConfirmed);
-      socket.off('booking:cancelled', handleBookingCancelled);
-      socket.off('booking:completed', handleBookingCompleted);
-      socket.off('booking:created', handleBookingCreated);
-    };
-  }, [socket, isConnected]);
+    },
+    [getToken, t]
+  );
 
   useEffect(() => {
     fetchBookings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const getStatusColor = (status) => {
-    switch(status?.toLowerCase()) {
-      case 'confirmed': return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'pending': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'cancelled': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'completed': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      default: return 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30';
-    }
-  };
+  useEffect(() => {
+    if (!socket || !isConnected) return;
 
-  const getStatusIcon = (status) => {
-    switch(status?.toLowerCase()) {
-      case 'confirmed': return <CheckCircle className="w-3 h-3" />;
-      case 'pending': return <ClockIcon className="w-3 h-3" />;
-      case 'cancelled': return <XCircle className="w-3 h-3" />;
-      case 'completed': return <CheckCircle className="w-3 h-3" />;
-      default: return null;
-    }
-  };
+    const refresh = () => fetchBookings({ silent: true });
+    const events = ["booking:confirmed", "booking:cancelled", "booking:completed", "booking:created"];
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Date TBD';
+    events.forEach((evt) => socket.on(evt, refresh));
+    return () => events.forEach((evt) => socket.off(evt, refresh));
+  }, [socket, isConnected, fetchBookings]);
+
+  const normalized = useMemo(() => bookings.map(normalizeBooking), [bookings]);
+
+  const counts = useMemo(() => {
+    const result = {};
+    TABS.forEach((tab) => {
+      result[tab.key] = normalized.filter((b) => tab.match(b.status)).length;
+    });
+    return result;
+  }, [normalized]);
+
+  const visible = useMemo(() => {
+    const tab = TABS.find((x) => x.key === activeTab) || TABS[0];
+    const list = normalized.filter((b) => tab.match(b.status));
+    const time = (b) => parseDate(b.date)?.getTime() ?? Infinity;
+    return [...list].sort((a, b) => (activeTab === "upcoming" ? time(a) - time(b) : time(b) - time(a)));
+  }, [normalized, activeTab]);
+
+  const confirmCancel = async () => {
+    if (!pendingCancel) return;
+    const { id } = pendingCancel;
+
+    setCancellingId(id);
+    setActionError(null);
     try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        weekday: 'short',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch (e) {
-      return 'Invalid Date';
-    }
-  };
-
-  const formatTime = (timeString) => {
-    if (!timeString) return 'Time TBD';
-    try {
-      if (timeString.includes(':')) {
-        return timeString.substring(0, 5);
-      }
-      return new Date(timeString).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch (e) {
-      return 'Invalid Time';
-    }
-  };
-
-  const handleCancelBooking = async (bookingId) => {
-    if (!window.confirm('Are you sure you want to cancel this booking? Cancellations may be subject to fees.')) return;
-    
-    setCancellingId(bookingId);
-    try {
-      console.log(`📡 Cancelling booking ${bookingId}...`);
-      await cancelBooking(bookingId);
-      console.log(`✅ Booking ${bookingId} cancelled successfully`);
-      await fetchBookings();
+      await cancelBooking(id);
+      setPendingCancel(null);
+      await fetchBookings({ silent: true });
     } catch (err) {
-      console.error("❌ Error cancelling booking:", err);
-      
-      let errorMessage = "Failed to cancel booking. Please try again.";
-      if (err.message?.includes("401") || err.status === 401) {
-        errorMessage = "Session expired. Please log in again.";
-      } else if (err.message?.includes("403") || err.status === 403) {
-        errorMessage = "You don't have permission to cancel this booking.";
-      } else if (err.message?.includes("404") || err.status === 404) {
-        errorMessage = "Booking not found. It may have already been cancelled.";
-      }
-      alert(errorMessage);
+      console.error("Error cancelling booking:", err);
+      setPendingCancel(null);
+      setActionError(
+        friendlyError(err, t("bookingCancelFailed"), {
+          401: t("sessionExpiredMsg"),
+          403: t("noPermissionCancel"),
+          404: t("bookingNotFound"),
+        })
+      );
     } finally {
       setCancellingId(null);
     }
   };
 
-  const handleRetry = () => {
-    if (!loading) {
-      fetchBookings();
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
-        <Loader2 className="w-12 h-12 text-purple-500 animate-spin mb-4" />
-        <p className="text-zinc-400">Loading your bookings...</p>
-      </div>
-    );
-  }
+  const emptyCopy = EMPTY_COPY[activeTab];
 
   return (
-    <div className="min-h-screen bg-black pb-8">
-      <div className="bg-gradient-to-b from-purple-900/30 to-black px-6 pt-12 pb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">My Bookings</h1>
-          <p className="text-sm text-zinc-400">Manage your upcoming events</p>
-          {isConnected ? (
-            <span className="text-xs text-green-400 flex items-center gap-1 mt-1">
-              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
-              Live updates active
-            </span>
-          ) : (
-            <span className="text-xs text-yellow-400 flex items-center gap-1 mt-1">
-              <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>
-              Connecting to live updates...
-            </span>
-          )}
-        </div>
-        
-        {/* ✅ Notification Bell */}
-        <div className="relative">
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 hover:bg-white/10 rounded-full transition"
+    <div className="min-h-screen bg-zinc-950 text-white pb-12">
+      {/* Header */}
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-zinc-950/70 backdrop-blur-md">
+        <div className="max-w-3xl mx-auto px-5 py-3 flex items-center justify-between">
+          <Link
+            to="/"
+            className="flex items-center gap-2 text-zinc-400 hover:text-white transition rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
           >
-            <Bell className="w-6 h-6 text-zinc-400" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-pulse">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-          
-          {/* Notification Dropdown */}
-          {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-50 max-h-96 overflow-y-auto">
-              <div className="p-3 border-b border-zinc-800 flex items-center justify-between sticky top-0 bg-zinc-900 rounded-t-xl">
-                <span className="text-white font-medium">Notifications</span>
-                <div className="flex gap-2">
-                  {unreadCount > 0 && (
-                    <button 
-                      onClick={markAllAsRead}
-                      className="text-purple-400 text-xs hover:text-purple-300 transition"
-                    >
-                      Mark all as read
-                    </button>
-                  )}
-                  <button 
-                    onClick={() => setShowNotifications(false)}
-                    className="text-zinc-500 hover:text-white transition"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-              {notifications.length === 0 ? (
-                <div className="p-4 text-center text-zinc-500 text-sm">
-                  No notifications yet
-                </div>
-              ) : (
-                notifications.map((notif, index) => (
-                  <div key={notif.id || index} className={`p-3 border-b border-zinc-800 hover:bg-white/5 transition ${!notif.read ? 'bg-purple-500/5' : ''}`}>
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <p className="text-white text-sm font-medium">{notif.title}</p>
-                        <p className="text-zinc-400 text-xs">{notif.message}</p>
-                        <p className="text-zinc-500 text-xs mt-1">
-                          {notif.timestamp ? new Date(notif.timestamp).toLocaleString() : 'Just now'}
-                        </p>
-                      </div>
-                      {!notif.read && (
-                        <span className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0 mt-1"></span>
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-sm">{t("backToDJs")}</span>
+          </Link>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowNotifications((v) => !v)}
+              aria-label={unreadCount > 0 ? `${t("navNotifications")}, ${unreadCount} ${t("unreadLower")}` : t("navNotifications")}
+              aria-expanded={showNotifications}
+              className="relative p-2 rounded-full text-zinc-400 hover:text-white hover:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[1.25rem] h-5 px-1 bg-red-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {showNotifications && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowNotifications(false)} />
+                <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2.5rem)] bg-zinc-900 border border-white/10 rounded-xl shadow-2xl shadow-black/50 z-20 max-h-96 overflow-y-auto">
+                  <div className="p-3 border-b border-white/10 flex items-center justify-between sticky top-0 bg-zinc-900">
+                    <span className="font-medium">{t("navNotifications")}</span>
+                    <div className="flex items-center gap-3">
+                      {unreadCount > 0 && (
+                        <button onClick={markAllAsRead} className="text-purple-400 text-xs hover:text-purple-300 transition">
+                          {t("markAllAsRead")}
+                        </button>
                       )}
+                      <button
+                        onClick={() => setShowNotifications(false)}
+                        aria-label={t("close")}
+                        className="text-zinc-500 hover:text-white transition"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      </div>
 
-      <div className="max-w-3xl mx-auto px-6 mt-4">
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-4">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-              <p className="text-red-400 text-sm flex-1">{error}</p>
-              <button 
-                onClick={handleRetry}
-                disabled={loading}
-                className="text-red-400 text-sm hover:text-red-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Retrying...' : 'Retry'}
-              </button>
-            </div>
+                  {notifications.length === 0 ? (
+                    <div className="p-6 text-center text-zinc-500 text-sm">{t("noNotificationsYet")}</div>
+                  ) : (
+                    notifications.map((notif, index) => (
+                      <div
+                        key={notif.id || index}
+                        className={`p-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition ${!notif.read ? "bg-purple-500/5" : ""}`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white text-sm font-medium">{notif.title}</p>
+                            <p className="text-zinc-400 text-xs">{notif.message}</p>
+                            <p className="text-zinc-500 text-xs mt-1">
+                              {notif.timestamp ? new Date(notif.timestamp).toLocaleString() : t("timeJustNow")}
+                            </p>
+                          </div>
+                          {!notif.read && <span className="w-2 h-2 bg-purple-500 rounded-full shrink-0 mt-1.5" />}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Title */}
+      <section className="relative overflow-hidden border-b border-white/10">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 w-[36rem] max-w-full h-64 rounded-full bg-purple-600/20 blur-3xl"
+        />
+        <div className="relative max-w-3xl mx-auto px-5 py-10">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{t("myBookingsTitle")}</h1>
+          <p className="text-zinc-400 mt-1">{t("myBookingsSubtitle")}</p>
+
+          <div className="mt-3 flex items-center gap-1.5 text-xs" role="status">
+            {isConnected ? (
+              <>
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping motion-reduce:animate-none" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+                </span>
+                <span className="text-green-400">{t("liveUpdatesOn")}</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-yellow-400" />
+                <span className="text-yellow-400">{t("connectingLiveUpdates")}</span>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <main className="max-w-3xl mx-auto px-5 mt-6">
+        {/* Tabs */}
+        {!loading && !error && normalized.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1 mb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist">
+            {TABS.map((tab) => {
+              const active = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 ${
+                    active
+                      ? "bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white font-medium"
+                      : "border border-white/10 text-zinc-400 hover:border-white/25 hover:text-white"
+                  }`}
+                >
+                  {t(tab.labelKey)}
+                  <span className={`ml-1.5 ${active ? "text-white/80" : "text-zinc-500"}`}>{counts[tab.key]}</span>
+                </button>
+              );
+            })}
           </div>
         )}
-        
-        {!loading && bookings.length === 0 && !error ? (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-10 text-center flex flex-col items-center">
-            <Calendar className="w-16 h-16 text-zinc-700 mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">No upcoming bookings</h2>
-            <p className="text-zinc-400 mb-6">You haven't scheduled any DJs yet.</p>
-            <Link to="/" className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-full font-semibold transition">
-              Find a DJ
+
+        {/* Action error */}
+        {actionError && (
+          <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-4" role="alert">
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+            <p className="text-red-400 text-sm flex-1">{actionError}</p>
+            <button
+              onClick={() => setActionError(null)}
+              aria-label={t("dismiss")}
+              className="text-red-400 hover:text-red-300 transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {loading ? (
+          <BookingSkeletons />
+        ) : error ? (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center" role="alert">
+            <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
+            <p className="text-red-400 text-sm mb-4">{error}</p>
+            <button onClick={() => fetchBookings()} className={`${btnGhost} px-5 py-2 text-sm`}>
+              {t("tryAgain")}
+            </button>
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-10 text-center flex flex-col items-center">
+            <div className="p-4 bg-white/5 rounded-2xl mb-4">
+              {normalized.length === 0 ? (
+                <Calendar className="w-10 h-10 text-zinc-500" />
+              ) : (
+                <Headphones className="w-10 h-10 text-zinc-500" />
+              )}
+            </div>
+            <h2 className="text-xl font-bold mb-2">{t(emptyCopy.titleKey)}</h2>
+            <p className="text-zinc-400 mb-6">{t(emptyCopy.bodyKey)}</p>
+            <Link to="/" className={`${btnPrimary} px-6 py-2.5`}>
+              {t("findDJ")}
             </Link>
           </div>
         ) : (
-          !error && bookings.length > 0 && (
-            <div className="space-y-4">
-              {bookings.map((booking) => {
-                const bookingId = booking.booking_id || booking.id;
-                const djId = booking.dj_id || booking.djId;
-                const djName = booking.dj_name || booking.dj?.name || 'DJ';
-                const status = booking.booking_status || booking.status || 'pending';
-                
-                return (
-                  <div key={bookingId} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 hover:border-purple-500/30 transition-all duration-300">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center shadow-lg flex-shrink-0">
-                          <span className="text-white font-bold text-lg">
-                            {djName.charAt(0)}
-                          </span>
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-white text-lg">{djName}</h3>
-                          <p className="text-xs text-purple-400">
-                            {booking.event_type || booking.eventType || 'Event'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className={`${getStatusColor(status)} text-xs px-3 py-1 rounded-full font-semibold flex items-center gap-1 border flex-shrink-0 ml-2`}>
-                        {getStatusIcon(status)}
-                        {status.toUpperCase()}
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3 bg-black/50 rounded-xl p-4 mb-4">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                        <span className="text-sm text-zinc-300">
-                          {formatDate(booking.event_date || booking.eventDate)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                        <span className="text-sm text-zinc-300">
-                          {formatTime(booking.event_time || booking.eventTime)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                        <span className="text-sm text-zinc-300">
-                          {booking.duration_hours || booking.durationHours || 4} hours
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                        <span className="text-sm text-zinc-300">
-                          {booking.number_of_guests || booking.numberOfGuests || 0} guests
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between items-center mb-4 pb-2 border-b border-zinc-800">
-                      <span className="text-zinc-500 text-sm">Total Price:</span>
-                      <span className="text-white font-bold text-lg">
-                        R{booking.total_price || booking.totalPrice || 
-                          (booking.price_per_hour || booking.pricePerHour || 0) * 
-                          (booking.duration_hours || booking.durationHours || 0) || 0}
-                      </span>
-                    </div>
-
-                    <div className="flex gap-3">
-                      {(status === 'completed') && (
-                        <Link 
-                          to={`/review/${bookingId}`}
-                          className="flex-1 bg-purple-500 hover:bg-purple-600 text-white text-center py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 shadow-lg shadow-purple-500/25"
-                        >
-                          Leave Review
-                        </Link>
-                      )}
-                      {(status === 'pending' || status === 'confirmed') && (
-                        <button 
-                          onClick={() => handleCancelBooking(bookingId)}
-                          disabled={cancellingId === bookingId}
-                          className="flex-1 bg-red-500/20 text-red-400 hover:bg-red-500/30 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {cancellingId === bookingId ? (
-                            <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                          ) : (
-                            'Cancel Booking'
-                          )}
-                        </button>
-                      )}
-                      <Link 
-                        to={`/dj/${djId}`}
-                        className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white text-center py-2.5 rounded-xl text-sm font-semibold transition-all duration-300"
-                      >
-                        View DJ Profile
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )
+          <div className="space-y-4">
+            {visible.map((booking) => (
+              <BookingCard
+                key={booking.id}
+                booking={booking}
+                cancelling={cancellingId === booking.id}
+                onCancel={setPendingCancel}
+                t={t}
+              />
+            ))}
+          </div>
         )}
-      </div>
+      </main>
+
+      {pendingCancel && (
+        <CancelDialog
+          booking={pendingCancel}
+          busy={cancellingId === pendingCancel.id}
+          onConfirm={confirmCancel}
+          onClose={() => setPendingCancel(null)}
+          t={t}
+        />
+      )}
     </div>
   );
 }

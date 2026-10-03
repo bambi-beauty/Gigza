@@ -1,10 +1,14 @@
+// src/App.js
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { UserProvider } from "./UserContext/ThisUserContext";
 import { SocketProvider } from "./UserContext/SocketContext";
+import { ThemeProvider } from "./UserContext/ThemeContext";
+import { FontProvider } from "./UserContext/FontContext";
+import { I18nProvider } from "./hooks/useTranslation";
 import Splash from "./components/Splash";
 import Login from "./components/Login";
-import { VerifyOTP } from "./VerifyOTP"; // ✅ ADD THIS IMPORT
+import { VerifyOTP } from "./VerifyOTP";
 import { ProfileSetupScreen } from "./ProfileSetupScreen";
 import { TopNav } from "./TopNav";
 import { HomeScreen } from "./HomeScreen";
@@ -80,22 +84,21 @@ function AppContent() {
   return (
     <Routes>
       {/* ========== PUBLIC ROUTES (No Auth) ========== */}
-      {/* ✅ ADD THIS ROUTE - MUST BE BEFORE /login */}
-      <Route 
-        path="/verify-otp" 
-        element={<VerifyOTP onVerified={goToProfileSetup} />} 
+      <Route
+        path="/verify-otp"
+        element={<VerifyOTP onVerified={goToProfileSetup} />}
       />
-      <Route 
-        path="/login" 
-        element={<Login goToProfileSetup={goToProfileSetup} goToHome={goToHome} />} 
+      <Route
+        path="/login"
+        element={<Login goToProfileSetup={goToProfileSetup} goToHome={goToHome} />}
       />
-      <Route 
-        path="/profile-setup" 
-        element={<ProfileSetupScreen onComplete={goToHome} onSkip={goToHome} />} 
+      <Route
+        path="/profile-setup"
+        element={<ProfileSetupScreen onComplete={goToHome} onSkip={goToHome} />}
       />
 
       {/* ========== PROTECTED ROUTES (Auth Required) ========== */}
-      
+
       {/* Home */}
       <Route
         path="/"
@@ -107,7 +110,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* Bookings */}
       <Route
         path="/bookings"
@@ -119,7 +122,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* Booking Form - Create new booking */}
       <Route
         path="/book/:djId"
@@ -131,7 +134,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* DJ Profile */}
       <Route
         path="/dj/:id"
@@ -143,7 +146,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* DJ Dashboard (for approved DJs) */}
       <Route
         path="/dashboard"
@@ -155,7 +158,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* Emergency SOS */}
       <Route
         path="/emergency"
@@ -167,7 +170,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* Notifications */}
       <Route
         path="/notifications"
@@ -179,7 +182,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* Checkout / Payment */}
       <Route
         path="/checkout/:djId"
@@ -191,7 +194,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* Leave Review */}
       <Route
         path="/review/:bookingId"
@@ -203,7 +206,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* Scheduled Booking (alternative booking flow) */}
       <Route
         path="/schedule/:id"
@@ -215,7 +218,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* User Profile */}
       <Route
         path="/profile"
@@ -227,7 +230,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* DJ Requests (for DJs to see booking requests) */}
       <Route
         path="/requests"
@@ -239,7 +242,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* Apply to Become a DJ */}
       <Route
         path="/apply-dj"
@@ -251,7 +254,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      
+
       {/* Catch all - redirect to home */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -261,13 +264,19 @@ function AppContent() {
 // Main App component
 function App() {
   return (
-    <UserProvider>
-      <SocketProvider>
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
-      </SocketProvider>
-    </UserProvider>
+    <ThemeProvider>
+      <FontProvider>
+        <I18nProvider>
+          <UserProvider>
+            <SocketProvider>
+              <BrowserRouter>
+                <AppContent />
+              </BrowserRouter>
+            </SocketProvider>
+          </UserProvider>
+        </I18nProvider>
+      </FontProvider>
+    </ThemeProvider>
   );
 }
 
